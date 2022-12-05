@@ -1,0 +1,7 @@
+{
+  "cmake.sourceDirectory": "${workspaceFolder}/melonDS",
+  "cmake.configureSettings": {
+    "CMAKE_PREFIX_PATH": "/usr/local/opt/qt;/usr/local/opt/libarchive",
+    "USE_QT6": "ON"
+  },
+}
