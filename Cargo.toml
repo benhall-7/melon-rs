@@ -4,8 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-
+glium = "0.32.1"
+autocxx = "0.23.1"
+cxx = "1.0"
 
 [build-dependencies]
 cmake = "0.1"
-bindgen = "0.63.0"
+autocxx-build = "0.23.1"

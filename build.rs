@@ -1,20 +1,26 @@
-use std::env;
-use std::path::PathBuf;
-
 use cmake::Config;
 
 fn main() {
     // build melonDS
     let dst = Config::new("melonDS")
-        .define("CMAKE_PREFIX_PATH", "/usr/local/opt/qt;/usr/local/opt/libarchive")
-        .define("USE_QT6", "ON")
+        .define("BUILD_QT_SDL", "OFF")
         .build_target("core")
         .build();
-    
-    // Check output of `cargo build --verbose`, should see something like:
-    // -L native=/path/runng/target/debug/build/runng-sys-abc1234/out
-    // That contains output from cmake
-    println!("cargo:rustc-link-search=native={}", dst.display());
-    // // Tell rustc to use nng static library
-    // println!("cargo:rustc-link-lib=static=melonDS");
+
+    // bindings are compiled based on header files only, we linked to actual code later
+    let path = std::path::PathBuf::from("melonDS/src"); // include path
+    let mut b = autocxx_build::Builder::new("src/melon/sys.rs", [&path])
+        .build()
+        .expect("couldn't build sys :<");
+
+    b.flag_if_supported("-std=c++17")
+        .compile("melon-bindings"); // arbitrary library name, pick anything
+    println!("cargo:rerun-if-changed=src/melon/sys.rs");
+
+    // link it!
+    println!(
+        "cargo:rustc-link-search=native={}",
+        dst.join("build/src").display()
+    );
+    println!("cargo:rustc-link-lib=static=core");
 }
