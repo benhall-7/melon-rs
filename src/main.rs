@@ -8,5 +8,8 @@ fn main() {
     // let cb = glutin::ContextBuilder::new();
     // let display = glium::Display::new(wb, cb, &event_loop).unwrap();
 
-    println!("{}", melon::nds::cart_inserted())
+    let mut lock = melon::nds::INSTANCE.lock().unwrap();
+    let mut ds = lock.take().unwrap();
+
+    println!("{}", ds.cart_inserted());
 }
