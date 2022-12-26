@@ -1,4 +1,5 @@
-mod melon;
+pub mod melon;
+pub mod events;
 
 fn main() {
     // use glium::glutin;

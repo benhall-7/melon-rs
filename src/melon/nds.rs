@@ -17,7 +17,7 @@ pub enum ConsoleType {
 
 impl NDS {
     fn new() -> Result<Self, ()> {
-        let res = sys::NDS::Init();
+        let res = sys::nds::Init();
         if res {
             let mut nds = NDS(());
             nds.set_console_type(ConsoleType::DS);
@@ -29,16 +29,16 @@ impl NDS {
 
     fn set_console_type(&mut self, console: ConsoleType) {
         let val = console as i32;
-        sys::NDS::SetConsoleType(val);
+        sys::nds::SetConsoleType(val);
     }
 
     pub fn cart_inserted(&self) -> bool {
-        sys::NDS::CartInserted()
+        sys::nds::CartInserted()
     }
 }
 
 impl Drop for NDS {
     fn drop(&mut self) {
-        sys::NDS::DeInit()
+        sys::nds::DeInit()
     }
 }
