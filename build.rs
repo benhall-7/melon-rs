@@ -8,9 +8,10 @@ fn main() {
         .build();
 
     cxx_build::bridge("src/melon/sys.rs")
-        .include("src/melon/cpp")
         .include("melonDS/src")
+        .include("melonDS/src/frontend/glad")
         .file("src/melon/cpp/Platform.cpp")
+        .file("melonDS/src/frontend/glad/glad.c")
         .flag_if_supported("-std=c++17")
         .compile("melon-bindings"); // arbitrary library name, pick anything
     println!("cargo:rerun-if-changed=src/melon/sys.rs");

@@ -4,12 +4,12 @@
 
 // I might have been able to implement these all in Rust, but they presented
 // at least two challenges. The first being OpenFile has a default param. The
-// second is that both require returning FILE* pointers, which were trick to
-// define and Rust, and could also be nullptr.
+// second is that both require returning FILE* pointers, which were tricky to
+// define in Rust, and could also be nullptr.
 
 namespace Platform
 {
-    FILE *OpenFile(std::string path, std::string mode, bool mustexist = false)
+    FILE *OpenFile(std::string path, std::string mode, bool mustexist)
     {
         FILE *f;
         // check if it exists, kind of???

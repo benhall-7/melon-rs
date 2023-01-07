@@ -43,18 +43,6 @@ pub mod nds {
         fn DeInit();
         fn SetConsoleType(console_type: i32);
         fn CartInserted() -> bool;
-
-        // generate!("NDS::Reset")
-        // generate!("NDS::Start")
-        // generate!("NDS::Stop")
-        // generate!("NDS::DoSavestate")
-        // generate!("NDS::SetARM9RegionTimings")
-        // generate!("NDS::SetARM7RegionTimings")
-        // // this just calls ::Reset
-        // // generate!("NDS::LoadBIOS")
-        // generate!("NDS::LoadCart")
-        // generate!("NDS::LoadSave")
-        // generate!("NDS::EjectCart")
     }
 }
 
@@ -68,7 +56,7 @@ pub mod platform {
     use crate::melon::subscriptions;
 
     #[cxx::bridge(namespace = "Platform")]
-    pub mod PlatformHeader {
+    pub mod PlatformBridge {
         extern "Rust" {
             #[cxx_name = "Mutex"]
             type NdsMutex;
@@ -85,6 +73,13 @@ pub mod platform {
             fn camera_start(num: i32);
             #[cxx_name = "Camera_Stop"]
             fn camera_stop(num: i32);
+
+            #[cxx_name = "GetConfigBool"]
+            fn get_config_bool(entry: ConfigEntry) -> bool;
+            #[cxx_name = "GetConfigInt"]
+            fn get_config_int(entry: ConfigEntry) -> i32;
+            #[cxx_name = "GetConfigString"]
+            fn get_config_string(entry: ConfigEntry) -> String;
 
             #[cxx_name = "Mutex_Create"]
             fn mutex_create() -> *mut NdsMutex;
@@ -128,6 +123,44 @@ pub mod platform {
             #[cxx_name = "MP_End"]
             fn mp_end();
         }
+
+        #[repr(u32)]
+        enum ConfigEntry {
+            // JIT_Enable,
+            // JIT_MaxBlockSize,
+            // JIT_LiteralOptimizations,
+            // JIT_BranchOptimizations,
+            // JIT_FastMemory,
+            ExternalBIOSEnable,
+            BIOS9Path,
+            BIOS7Path,
+            FirmwarePath,
+            DSi_BIOS9Path,
+            DSi_BIOS7Path,
+            DSi_FirmwarePath,
+            DSi_NANDPath,
+            DLDI_Enable,
+            DLDI_ImagePath,
+            DLDI_ImageSize,
+            DLDI_ReadOnly,
+            DLDI_FolderSync,
+            DLDI_FolderPath,
+            DSiSD_Enable,
+            DSiSD_ImagePath,
+            DSiSD_ImageSize,
+            DSiSD_ReadOnly,
+            DSiSD_FolderSync,
+            DSiSD_FolderPath,
+            Firm_OverrideSettings,
+            Firm_Username,
+            Firm_Language,
+            Firm_BirthdayMonth,
+            Firm_BirthdayDay,
+            Firm_Color,
+            Firm_Message,
+            Firm_MAC,
+            AudioBitrate,
+        }
     }
 
     // probably invoking some 8th cardinal sin
@@ -169,6 +202,17 @@ pub mod platform {
     fn camera_start(num: i32) {}
 
     fn camera_stop(num: i32) {}
+
+    use PlatformBridge::ConfigEntry;
+    fn get_config_bool(entry: ConfigEntry) -> bool {
+        false
+    }
+    fn get_config_int(entry: ConfigEntry) -> i32 {
+        0
+    }
+    fn get_config_string(entry: ConfigEntry) -> String {
+        String::new()
+    }
 
     fn mutex_create() -> *mut NdsMutex {
         let mutex = Box::new(NdsMutex::new());
