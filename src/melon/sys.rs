@@ -1,10 +1,35 @@
 #[cxx::bridge]
 mod ffi {
     extern "C++" {
-        include!("Savestate.h");
-        include!("types.h");
+        // #[cxx_name = "FILE"]
+        // type CFile;
+    }
+}
 
-        type Savestate;
+mod glue {
+    use std::path::PathBuf;
+
+    #[cxx::bridge(namespace = "Rust")]
+    mod rust {
+        extern "Rust" {
+            #[cxx_name = "LocalizePath"]
+            fn localize_path(path: String) -> String;
+        }
+    }
+
+    fn localize_path(path: String) -> String {
+        let pathbuf = PathBuf::from(path);
+        if pathbuf.is_absolute() {
+            pathbuf.to_string_lossy().into()
+        } else {
+            std::env::current_exe()
+                .expect("Couldn't get target executable path")
+                .parent()
+                .expect("Failed to get path to current executable's parent folder")
+                .join("melon")
+                .to_string_lossy()
+                .into()
+        }
     }
 }
 
@@ -50,6 +75,8 @@ pub mod platform {
 
             #[cxx_name = "InstanceID"]
             fn instance_id() -> i32;
+            #[cxx_name = "InstanceFileSuffix"]
+            fn instance_file_suffix() -> String;
 
             #[cxx_name = "StopEmu"]
             fn stop_emu();
@@ -101,11 +128,6 @@ pub mod platform {
             #[cxx_name = "MP_End"]
             fn mp_end();
         }
-
-        // extern "C++" {
-        //     include!("Platform.h");
-        //     type ConfigEntry;
-        // }
     }
 
     // probably invoking some 8th cardinal sin
@@ -134,6 +156,10 @@ pub mod platform {
 
     fn instance_id() -> i32 {
         std::process::id() as i32
+    }
+
+    fn instance_file_suffix() -> String {
+        format!("{}", instance_id())
     }
 
     fn stop_emu() {

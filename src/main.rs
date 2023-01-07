@@ -10,7 +10,7 @@ fn main() {
     // let display = glium::Display::new(wb, cb, &event_loop).unwrap();
 
     let mut lock = melon::nds::INSTANCE.lock().unwrap();
-    let mut ds = lock.take().unwrap();
+    let ds = lock.take().unwrap();
 
     println!("{}", ds.cart_inserted());
 }

@@ -7,14 +7,14 @@ fn main() {
         .build_target("all")
         .build();
 
-    // bindings are compiled based on header files and dynamically added
-    // based on which functions we use, and those others they depends on
-    let path = std::path::PathBuf::from("melonDS/src"); // include path
     cxx_build::bridge("src/melon/sys.rs")
-        .include(path)
+        .include("src/melon/cpp")
+        .include("melonDS/src")
+        .file("src/melon/cpp/Platform.cpp")
         .flag_if_supported("-std=c++17")
         .compile("melon-bindings"); // arbitrary library name, pick anything
     println!("cargo:rerun-if-changed=src/melon/sys.rs");
+    println!("cargo:rerun-if-changed=src/melon/cpp/Platform.cpp");
 
     // link it!
     println!(
