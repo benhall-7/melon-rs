@@ -43,6 +43,12 @@ pub mod nds {
         fn DeInit();
         fn SetConsoleType(console_type: i32);
         fn CartInserted() -> bool;
+        unsafe fn LoadCart(
+            romdata: *const u8,
+            romlen: u32,
+            savedata: *const u8,
+            savelen: u32,
+        ) -> bool;
     }
 }
 
@@ -122,6 +128,9 @@ pub mod platform {
             fn mp_begin();
             #[cxx_name = "MP_End"]
             fn mp_end();
+
+            #[cxx_name = "WriteNDSSave"]
+            unsafe fn write_nds_save(savedata: *const u8, savelen: u32, writeoffset: u32, writelen: u32);
         }
 
         #[repr(u32)]
@@ -295,6 +304,10 @@ pub mod platform {
     fn mp_deinit() {}
     fn mp_begin() {}
     fn mp_end() {}
+
+    unsafe fn write_nds_save(savedata: *const u8, savelen: u32, writeoffset: u32, writelen: u32) {
+        // TODO
+    }
 }
 
 pub use ffi::*;

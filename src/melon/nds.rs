@@ -35,6 +35,18 @@ impl NDS {
     pub fn cart_inserted(&self) -> bool {
         sys::nds::CartInserted()
     }
+
+    pub fn load_cart(&mut self, rom: &[u8], save: Option<&[u8]>) -> bool {
+        unsafe {
+            sys::nds::LoadCart(
+                rom.as_ptr(),
+                rom.len() as u32,
+                save.map(|data| data.as_ptr())
+                    .unwrap_or_else(std::ptr::null::<u8>),
+                save.map(|data| data.len() as u32).unwrap_or_default(),
+            )
+        }
+    }
 }
 
 impl Drop for NDS {

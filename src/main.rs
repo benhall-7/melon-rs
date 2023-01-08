@@ -1,17 +1,12 @@
-pub mod melon;
-pub mod events;
 pub mod config;
+pub mod events;
+pub mod melon;
 
 fn main() {
-    // use glium::glutin;
-
-    // let mut event_loop = glutin::event_loop::EventLoop::new();
-    // let wb = glutin::window::WindowBuilder::new();
-    // let cb = glutin::ContextBuilder::new();
-    // let display = glium::Display::new(wb, cb, &event_loop).unwrap();
-
     let mut lock = melon::nds::INSTANCE.lock().unwrap();
-    let ds = lock.take().unwrap();
+    let mut ds = lock.take().unwrap();
+
+    ds.load_cart(&std::fs::read("/Users/benjamin/Desktop/ds/Ultra.nds").unwrap(), None);
 
     println!("{}", ds.cart_inserted());
 }
