@@ -125,6 +125,7 @@ pub mod platform {
         }
 
         #[repr(u32)]
+        #[derive(Debug, Clone, Copy)]
         enum ConfigEntry {
             // JIT_Enable,
             // JIT_MaxBlockSize,
@@ -203,15 +204,52 @@ pub mod platform {
 
     fn camera_stop(num: i32) {}
 
+    use crate::config;
     use PlatformBridge::ConfigEntry;
     fn get_config_bool(entry: ConfigEntry) -> bool {
-        false
+        match entry {
+            ConfigEntry::ExternalBIOSEnable => config::EXTERNAL_BIOSENABLE,
+            ConfigEntry::DLDI_Enable => config::DLDIENABLE,
+            ConfigEntry::DLDI_ReadOnly => config::DLDIREAD_ONLY,
+            ConfigEntry::DLDI_FolderSync => config::DLDIFOLDER_SYNC,
+            ConfigEntry::DSiSD_Enable => config::DSI_SDENABLE,
+            ConfigEntry::DSiSD_ReadOnly => config::DSI_SDREAD_ONLY,
+            ConfigEntry::DSiSD_FolderSync => config::DSI_SDFOLDER_SYNC,
+            ConfigEntry::Firm_OverrideSettings => config::FIRMWARE_OVERRIDE_SETTINGS,
+            _ => false,
+        }
     }
     fn get_config_int(entry: ConfigEntry) -> i32 {
-        0
+        let img_sizes = [0, 256, 512, 1024, 2048, 4096];
+        match entry {
+            ConfigEntry::DLDI_ImageSize => config::DLDISIZE,
+            ConfigEntry::DSiSD_ImageSize => config::DSI_SDSIZE,
+            ConfigEntry::Firm_Language => config::FIRMWARE_LANGUAGE,
+            ConfigEntry::Firm_BirthdayMonth => config::FirmwareBirthdayMonth,
+            ConfigEntry::Firm_BirthdayDay => config::FirmwareBirthdayDay,
+            ConfigEntry::Firm_Color => config::FirmwareFavouriteColour,
+            ConfigEntry::AudioBitrate => config::AudioBitrate,
+            _ => 0,
+        }
     }
     fn get_config_string(entry: ConfigEntry) -> String {
-        String::new()
+        match entry {
+            ConfigEntry::BIOS9Path => config::BIOS9Path,
+            ConfigEntry::BIOS7Path => config::BIOS7Path,
+            ConfigEntry::FirmwarePath => config::FirmwarePath,
+            ConfigEntry::DSi_BIOS9Path => config::DSiBIOS9Path,
+            ConfigEntry::DSi_BIOS7Path => config::DSiBIOS7Path,
+            ConfigEntry::DSi_FirmwarePath => config::DSiFirmwarePath,
+            ConfigEntry::DSi_NANDPath => config::DSiNANDPath,
+            ConfigEntry::DLDI_ImagePath => config::DLDISDPath,
+            ConfigEntry::DLDI_FolderPath => config::DLDIFolderPath,
+            ConfigEntry::DSiSD_ImagePath => config::DSiSDPath,
+            ConfigEntry::DSiSD_FolderPath => config::DSiSDFolderPath,
+            ConfigEntry::Firm_Username => config::FirmwareUsername,
+            ConfigEntry::Firm_Message => config::FirmwareMessage,
+            _ => "",
+        }
+        .into()
     }
 
     fn mutex_create() -> *mut NdsMutex {

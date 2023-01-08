@@ -1,0 +1,30 @@
+pub const EXTERNAL_BIOSENABLE: bool = false;
+pub const DLDIENABLE: bool = false;
+pub const DLDIREAD_ONLY: bool = false;
+pub const DLDIFOLDER_SYNC: bool = false;
+pub const DSI_SDENABLE: bool = false;
+pub const DSI_SDREAD_ONLY: bool = false;
+pub const DSI_SDFOLDER_SYNC: bool = false;
+pub const FIRMWARE_OVERRIDE_SETTINGS: bool = false;
+
+pub const DLDISIZE: i32 = 0;
+pub const DSI_SDSIZE: i32 = 0;
+pub const FIRMWARE_LANGUAGE: i32 = 1;
+pub const FirmwareBirthdayMonth: i32 = 1;
+pub const FirmwareBirthdayDay: i32 = 1;
+pub const FirmwareFavouriteColour: i32 = 0;
+pub const AudioBitrate: i32 = 0;
+
+pub const BIOS9Path: &'static str = "";
+pub const BIOS7Path: &'static str = "";
+pub const FirmwarePath: &'static str = "";
+pub const DSiBIOS9Path: &'static str = "";
+pub const DSiBIOS7Path: &'static str = "";
+pub const DSiFirmwarePath: &'static str = "";
+pub const DSiNANDPath: &'static str = "";
+pub const DLDISDPath: &'static str = "dldi.bin";
+pub const DLDIFolderPath: &'static str = "";
+pub const DSiSDPath: &'static str = "dsisd.bin";
+pub const DSiSDFolderPath: &'static str = "";
+pub const FirmwareUsername: &'static str = "melon-rs";
+pub const FirmwareMessage: &'static str = "";
