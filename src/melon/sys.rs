@@ -35,13 +35,15 @@ mod glue {
 
 #[cxx::bridge(namespace = "NDS")]
 pub mod nds {
-    unsafe extern "C++" {
+    extern "C++" {
         include!("NDS.h");
         include!("types.h");
 
         fn Init() -> bool;
         fn DeInit();
+        
         fn SetConsoleType(console_type: i32);
+        
         fn CartInserted() -> bool;
         unsafe fn LoadCart(
             romdata: *const u8,
@@ -49,6 +51,8 @@ pub mod nds {
             savedata: *const u8,
             savelen: u32,
         ) -> bool;
+
+        fn RunFrame() -> u32;
     }
 }
 

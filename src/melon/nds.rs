@@ -47,6 +47,10 @@ impl NDS {
             )
         }
     }
+
+    pub fn run_frame(&mut self) -> u32 {
+        sys::nds::RunFrame()
+    }
 }
 
 impl Drop for NDS {
