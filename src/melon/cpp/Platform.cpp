@@ -1,14 +1,39 @@
 #include <stdio.h>
 #include <string>
-#include "melon-rs/src/melon/sys.rs.h"
 
-// I might have been able to implement these all in Rust, but they presented
-// at least two challenges. The first being OpenFile has a default param. The
-// second is that both require returning FILE* pointers, which were tricky to
-// define in Rust, and could also be nullptr.
+#include "Platform.h"
+
+#include "melon-rs/src/melon/sys.rs.h"
 
 namespace Platform
 {
+    // void Init(int argc, char **argv);
+    // void DeInit();
+    void StopEmu()
+    {
+        return Glue::StopEmu();
+    }
+    int InstanceID()
+    {
+        return Glue::InstanceID();
+    }
+    std::string InstanceFileSuffix()
+    {
+        return Glue::InstanceFileSuffix();
+    }
+    int GetConfigInt(ConfigEntry entry)
+    {
+        return Glue::GetConfigInt(entry);
+    }
+    bool GetConfigBool(ConfigEntry entry)
+    {
+        return Glue::GetConfigBool(entry);
+    }
+
+    // I might have been able to implement these all in Rust, but they presented
+    // at least two challenges. The first being OpenFile has a default param. The
+    // second is that both require returning FILE* pointers, which were tricky to
+    // define in Rust, and could also be nullptr.
     FILE *OpenFile(std::string path, std::string mode, bool mustexist)
     {
         FILE *f;
@@ -33,4 +58,76 @@ namespace Platform
         return OpenFile(localPath, mode, mode[0] != 'w');
     }
 
+    void WriteNDSSave(const u8 *savedata, u32 savelen, u32 writeoffset, u32 writelen)
+    {
+        return Glue::WriteNDSSave(savedata, savelen, writeoffset, writelen);
+    }
+    bool MP_Init()
+    {
+        return Glue::MP_Init();
+    }
+    void MP_DeInit()
+    {
+        return Glue::MP_DeInit();
+    }
+    void MP_Begin()
+    {
+        return Glue::MP_Begin();
+    }
+    void MP_End()
+    {
+        return Glue::MP_End();
+    }
+    int MP_SendPacket(u8 *data, int len, u64 timestamp)
+    {
+        return Glue::MP_SendPacket(data, len, timestamp);
+    }
+    int MP_RecvPacket(u8 *data, u64 *timestamp)
+    {
+        return Glue::MP_RecvPacket(data, timestamp);
+    }
+    int MP_SendCmd(u8 *data, int len, u64 timestamp)
+    {
+        return Glue::MP_SendCmd(data, len, timestamp);
+    }
+    int MP_SendReply(u8 *data, int len, u64 timestamp, u16 aid)
+    {
+        return Glue::MP_SendReply(data, len, timestamp, aid);
+    }
+    int MP_SendAck(u8 *data, int len, u64 timestamp)
+    {
+        return Glue::MP_SendAck(data, len, timestamp);
+    }
+    int MP_RecvHostPacket(u8 *data, u64 *timestamp)
+    {
+        return Glue::MP_RecvHostPacket(data, timestamp);
+    }
+    u16 MP_RecvReplies(u8 *data, u64 timestamp, u16 aidmask)
+    {
+        return Glue::MP_RecvReplies(data, timestamp, aidmask);
+    }
+    bool LAN_Init()
+    {
+        return Glue::LAN_Init();
+    }
+    void LAN_DeInit()
+    {
+        return Glue::LAN_DeInit();
+    }
+    int LAN_SendPacket(u8 *data, int len)
+    {
+        return Glue::LAN_SendPacket(data, len);
+    }
+    int LAN_RecvPacket(u8 *data)
+    {
+        return Glue::LAN_RecvPacket(data);
+    }
+    void Camera_Start(int num)
+    {
+        return Glue::Camera_Start(num);
+    }
+    void Camera_Stop(int num)
+    {
+        return Glue::Camera_Stop(num);
+    }
 }

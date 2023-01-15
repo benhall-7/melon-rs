@@ -37,11 +37,13 @@ mod glue {
 pub mod nds {
     unsafe extern "C++" {
         include!("NDS.h");
-        include!("types.h");
+        include!("GPU.h");
 
         fn Init() -> bool;
         fn DeInit();
+
         fn SetConsoleType(console_type: i32);
+
         fn CartInserted() -> bool;
         unsafe fn LoadCart(
             romdata: *const u8,
@@ -49,6 +51,19 @@ pub mod nds {
             savedata: *const u8,
             savelen: u32,
         ) -> bool;
+
+        fn Start();
+        fn Stop();
+        fn RunFrame() -> u32;
+    }
+}
+
+#[cxx::bridge(namespace = "GPU")]
+pub mod gpu {
+    unsafe extern "C++" {
+        include!("GPU.h");
+
+        fn InitRenderer(renderer: i32);
     }
 }
 
@@ -61,8 +76,8 @@ pub mod platform {
 
     use crate::melon::subscriptions;
 
-    #[cxx::bridge(namespace = "Platform")]
-    pub mod PlatformBridge {
+    #[cxx::bridge(namespace = "Glue")]
+    pub mod glue {
         extern "Rust" {
             #[cxx_name = "Mutex"]
             type NdsMutex;
@@ -121,7 +136,7 @@ pub mod platform {
             #[cxx_name = "MP_RecvReplies"]
             unsafe fn mp_recv_replies(data: *mut u8, timestamp: u64, aidmask: u16) -> u16;
             #[cxx_name = "MP_Init"]
-            fn mp_init();
+            fn mp_init() -> bool;
             #[cxx_name = "MP_DeInit"]
             fn mp_deinit();
             #[cxx_name = "MP_Begin"]
@@ -130,7 +145,12 @@ pub mod platform {
             fn mp_end();
 
             #[cxx_name = "WriteNDSSave"]
-            unsafe fn write_nds_save(savedata: *const u8, savelen: u32, writeoffset: u32, writelen: u32);
+            unsafe fn write_nds_save(
+                savedata: *const u8,
+                savelen: u32,
+                writeoffset: u32,
+                writelen: u32,
+            );
         }
 
         #[repr(u32)]
@@ -214,7 +234,7 @@ pub mod platform {
     fn camera_stop(num: i32) {}
 
     use crate::config;
-    use PlatformBridge::ConfigEntry;
+    use glue::ConfigEntry;
     fn get_config_bool(entry: ConfigEntry) -> bool {
         match entry {
             ConfigEntry::ExternalBIOSEnable => config::EXTERNAL_BIOSENABLE,
@@ -300,7 +320,9 @@ pub mod platform {
     unsafe fn mp_recv_replies(data: *mut u8, timestamp: u64, aidmask: u16) -> u16 {
         0
     }
-    fn mp_init() {}
+    fn mp_init() -> bool {
+        true
+    }
     fn mp_deinit() {}
     fn mp_begin() {}
     fn mp_end() {}

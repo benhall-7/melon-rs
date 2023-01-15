@@ -47,6 +47,19 @@ impl NDS {
             )
         }
     }
+
+    pub fn start(&mut self) {
+        sys::nds::Start();
+    }
+
+    pub fn stop(&mut self) {
+        sys::nds::Stop();
+    }
+
+    // Emulates a frame. Returns number of scanlines from GPU module
+    pub fn run_frame(&mut self) -> u32 {
+        sys::nds::RunFrame()
+    }
 }
 
 impl Drop for NDS {

@@ -4,7 +4,8 @@
             "name": "Mac",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/melonDS/src/teakra/include"
+                "${workspaceFolder}/melonDS/src/teakra/include",
+                "${workspaceFolder}/melonDS/src"
             ],
             "defines": [],
             "macFrameworkPath": [

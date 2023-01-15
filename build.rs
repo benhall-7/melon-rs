@@ -1,6 +1,10 @@
 use cmake::Config;
 
 fn main() {
+    println!("cargo:rerun-if-changed=src/melon/sys.rs");
+    println!("cargo:rerun-if-changed=melonDS/");
+    println!("cargo:rerun-if-changed=src/melon/cpp/Platform.cpp");
+
     // build melonDS
     let dst = Config::new("melonDS")
         .define("BUILD_QT_SDL", "OFF")
@@ -14,8 +18,6 @@ fn main() {
         .file("melonDS/src/frontend/glad/glad.c")
         .flag_if_supported("-std=c++17")
         .compile("melon-bindings"); // arbitrary library name, pick anything
-    println!("cargo:rerun-if-changed=src/melon/sys.rs");
-    println!("cargo:rerun-if-changed=src/melon/cpp/Platform.cpp");
 
     // link it!
     println!(
