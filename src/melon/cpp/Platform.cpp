@@ -17,9 +17,10 @@ namespace Platform
     {
         return Glue::InstanceID();
     }
+    // initialize std::string with ::rust::String
     std::string InstanceFileSuffix()
     {
-        return Glue::InstanceFileSuffix();
+        return std::string(Glue::InstanceFileSuffix());
     }
     int GetConfigInt(ConfigEntry entry)
     {
@@ -29,8 +30,11 @@ namespace Platform
     {
         return Glue::GetConfigBool(entry);
     }
+    std::string GetConfigString(ConfigEntry entry) {
+        return std::string(Glue::GetConfigString(entry));
+    }
 
-    // I might have been able to implement these all in Rust, but they presented
+    // I might have been able to implement these two in Rust, but they presented
     // at least two challenges. The first being OpenFile has a default param. The
     // second is that both require returning FILE* pointers, which were tricky to
     // define in Rust, and could also be nullptr.
@@ -56,6 +60,23 @@ namespace Platform
         auto localPathRust = Rust::LocalizePath(path);
         std::string localPath(localPathRust);
         return OpenFile(localPath, mode, mode[0] != 'w');
+    }
+
+    // using Mutex = Glue::Mutex;
+    Mutex* Mutex_Create() {
+        return Glue::Mutex_Create();
+    }
+    void Mutex_Free(Mutex* mutex) {
+        return Glue::Mutex_Free(mutex);
+    }
+    void Mutex_Lock(Mutex* mutex) {
+        return Glue::Mutex_Lock(mutex);
+    }
+    void Mutex_Unlock(Mutex* mutex) {
+        return Glue::Mutex_Unlock(mutex);
+    }
+    bool Mutex_TryLock(Mutex* mutex) {
+        return Glue::Mutex_TryLock(mutex);
     }
 
     void WriteNDSSave(const u8 *savedata, u32 savelen, u32 writeoffset, u32 writelen)

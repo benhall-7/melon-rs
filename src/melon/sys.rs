@@ -71,15 +71,17 @@ pub mod gpu {
 pub mod platform {
     use std::{
         ptr::drop_in_place,
-        sync::{Mutex, MutexGuard},
+        sync::{Mutex, MutexGuard, TryLockError, TryLockResult},
     };
 
     use crate::melon::subscriptions;
 
-    #[cxx::bridge(namespace = "Glue")]
+    #[cxx::bridge]
     pub mod glue {
+        #[namespace = "Glue"]
         extern "Rust" {
             #[cxx_name = "Mutex"]
+            #[namespace = "Platform"]
             type NdsMutex;
 
             #[cxx_name = "InstanceID"]
@@ -108,6 +110,8 @@ pub mod platform {
             unsafe fn mutex_free(mutex: *mut NdsMutex);
             #[cxx_name = "Mutex_Lock"]
             unsafe fn mutex_lock(mutex: *mut NdsMutex);
+            #[cxx_name = "Mutex_TryLock"]
+            unsafe fn mutex_try_lock(mutex: *mut NdsMutex) -> bool;
             #[cxx_name = "Mutex_Unlock"]
             unsafe fn mutex_unlock(mutex: *mut NdsMutex);
 
@@ -122,17 +126,17 @@ pub mod platform {
 
             // multiplayer
             #[cxx_name = "MP_SendAck"]
-            unsafe fn mp_send_ack(data: *mut u8, len: i32, timestamp: u64);
+            unsafe fn mp_send_ack(data: *mut u8, len: i32, timestamp: u64) -> i32;
             #[cxx_name = "MP_SendCmd"]
-            unsafe fn mp_send_cmd(data: *mut u8, len: i32, timestamp: u64);
+            unsafe fn mp_send_cmd(data: *mut u8, len: i32, timestamp: u64) -> i32;
             #[cxx_name = "MP_SendReply"]
-            unsafe fn mp_send_reply(data: *mut u8, len: i32, timestamp: u64, aid: u16);
+            unsafe fn mp_send_reply(data: *mut u8, len: i32, timestamp: u64, aid: u16) -> i32;
             #[cxx_name = "MP_SendPacket"]
-            unsafe fn mp_send_packet(data: *mut u8, len: i32, timestamp: u64);
+            unsafe fn mp_send_packet(data: *mut u8, len: i32, timestamp: u64) -> i32;
             #[cxx_name = "MP_RecvPacket"]
-            unsafe fn mp_recv_packet(data: *mut u8, timestamp: *mut u64);
+            unsafe fn mp_recv_packet(data: *mut u8, timestamp: *mut u64) -> i32;
             #[cxx_name = "MP_RecvHostPacket"]
-            unsafe fn mp_recv_host_packet(data: *mut u8, timestamp: *mut u64);
+            unsafe fn mp_recv_host_packet(data: *mut u8, timestamp: *mut u64) -> i32;
             #[cxx_name = "MP_RecvReplies"]
             unsafe fn mp_recv_replies(data: *mut u8, timestamp: u64, aidmask: u16) -> u16;
             #[cxx_name = "MP_Init"]
@@ -153,8 +157,15 @@ pub mod platform {
             );
         }
 
+        #[namespace = "Platform"]
+        extern "C++" {
+            include!("Platform.h");
+            type ConfigEntry;
+        }
+
         #[repr(u32)]
         #[derive(Debug, Clone, Copy)]
+        #[namespace = "Platform"]
         enum ConfigEntry {
             // JIT_Enable,
             // JIT_MaxBlockSize,
@@ -210,6 +221,14 @@ pub mod platform {
         pub unsafe fn lock(this: *mut Self) {
             let guard = (*this).mutex.lock().unwrap();
             (*this).guard = Some(guard);
+        }
+
+        pub unsafe fn try_lock(
+            this: *mut Self,
+        ) -> Result<(), TryLockError<MutexGuard<'static, ()>>> {
+            let guard = (*this).mutex.try_lock()?;
+            (*this).guard = Some(guard);
+            Ok(())
         }
 
         pub unsafe fn unlock(this: *mut Self) {
@@ -288,6 +307,9 @@ pub mod platform {
     unsafe fn mutex_lock(mutex: *mut NdsMutex) {
         NdsMutex::lock(mutex);
     }
+    unsafe fn mutex_try_lock(mutex: *mut NdsMutex) -> bool {
+        NdsMutex::try_lock(mutex).is_ok()
+    }
     unsafe fn mutex_unlock(mutex: *mut NdsMutex) {
         NdsMutex::unlock(mutex);
     }
@@ -311,12 +333,24 @@ pub mod platform {
         subscriptions::STOP_EMU.lock().unwrap().call(())
     }
 
-    unsafe fn mp_send_ack(data: *mut u8, len: i32, timestamp: u64) {}
-    unsafe fn mp_send_cmd(data: *mut u8, len: i32, timestamp: u64) {}
-    unsafe fn mp_send_reply(data: *mut u8, len: i32, timestamp: u64, aid: u16) {}
-    unsafe fn mp_send_packet(data: *mut u8, len: i32, timestamp: u64) {}
-    unsafe fn mp_recv_packet(data: *mut u8, timestamp: *mut u64) {}
-    unsafe fn mp_recv_host_packet(data: *mut u8, timestamp: *mut u64) {}
+    unsafe fn mp_send_ack(data: *mut u8, len: i32, timestamp: u64) -> i32 {
+        0
+    }
+    unsafe fn mp_send_cmd(data: *mut u8, len: i32, timestamp: u64) -> i32 {
+        0
+    }
+    unsafe fn mp_send_reply(data: *mut u8, len: i32, timestamp: u64, aid: u16) -> i32 {
+        0
+    }
+    unsafe fn mp_send_packet(data: *mut u8, len: i32, timestamp: u64) -> i32 {
+        0
+    }
+    unsafe fn mp_recv_packet(data: *mut u8, timestamp: *mut u64) -> i32 {
+        0
+    }
+    unsafe fn mp_recv_host_packet(data: *mut u8, timestamp: *mut u64) -> i32 {
+        0
+    }
     unsafe fn mp_recv_replies(data: *mut u8, timestamp: u64, aidmask: u16) -> u16 {
         0
     }
