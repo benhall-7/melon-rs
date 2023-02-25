@@ -2,6 +2,7 @@
 #include <string>
 
 #include "Platform.h"
+#include "Util.cpp"
 
 #include "melon-rs/src/melon/sys.rs.h"
 
@@ -30,7 +31,8 @@ namespace Platform
     {
         return Glue::GetConfigBool(entry);
     }
-    std::string GetConfigString(ConfigEntry entry) {
+    std::string GetConfigString(ConfigEntry entry)
+    {
         return std::string(Glue::GetConfigString(entry));
     }
 
@@ -62,20 +64,39 @@ namespace Platform
         return OpenFile(localPath, mode, mode[0] != 'w');
     }
 
-    // using Mutex = Glue::Mutex;
-    Mutex* Mutex_Create() {
+    Thread *Thread_Create(std::function<void()> func)
+    {
+        Util::OpaqueFunction *opaque = new Util::OpaqueFunction;
+        opaque->f = func;
+        return Glue::Thread_Create(opaque);
+    }
+    void Thread_Free(Thread *thread)
+    {
+        return Glue::Thread_Free(thread);
+    }
+    void Thread_Wait(Thread *thread)
+    {
+        return Glue::Thread_Wait(thread);
+    }
+
+    Mutex *Mutex_Create()
+    {
         return Glue::Mutex_Create();
     }
-    void Mutex_Free(Mutex* mutex) {
+    void Mutex_Free(Mutex *mutex)
+    {
         return Glue::Mutex_Free(mutex);
     }
-    void Mutex_Lock(Mutex* mutex) {
+    void Mutex_Lock(Mutex *mutex)
+    {
         return Glue::Mutex_Lock(mutex);
     }
-    void Mutex_Unlock(Mutex* mutex) {
+    void Mutex_Unlock(Mutex *mutex)
+    {
         return Glue::Mutex_Unlock(mutex);
     }
-    bool Mutex_TryLock(Mutex* mutex) {
+    bool Mutex_TryLock(Mutex *mutex)
+    {
         return Glue::Mutex_TryLock(mutex);
     }
 

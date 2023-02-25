@@ -72,6 +72,7 @@ pub mod platform {
     use std::{
         ptr::drop_in_place,
         sync::{Mutex, MutexGuard, TryLockError, TryLockResult},
+        thread::{spawn, JoinHandle},
     };
 
     use crate::melon::subscriptions;
@@ -80,6 +81,10 @@ pub mod platform {
     pub mod glue {
         #[namespace = "Glue"]
         extern "Rust" {
+            #[cxx_name = "Thread"]
+            #[namespace = "Platform"]
+            type NdsThread;
+
             #[cxx_name = "Mutex"]
             #[namespace = "Platform"]
             type NdsMutex;
@@ -103,6 +108,13 @@ pub mod platform {
             fn get_config_int(entry: ConfigEntry) -> i32;
             #[cxx_name = "GetConfigString"]
             fn get_config_string(entry: ConfigEntry) -> String;
+
+            #[cxx_name = "Thread_Create"]
+            unsafe fn thread_create(func: *mut OpaqueFunction) -> *mut NdsThread;
+            #[cxx_name = "Thread_Wait"]
+            unsafe fn thread_wait(thread: *mut NdsThread);
+            #[cxx_name = "Thread_Free"]
+            unsafe fn thread_free(thread: *mut NdsThread);
 
             #[cxx_name = "Mutex_Create"]
             fn mutex_create() -> *mut NdsMutex;
@@ -158,9 +170,19 @@ pub mod platform {
         }
 
         #[namespace = "Platform"]
-        extern "C++" {
+        unsafe extern "C++" {
             include!("Platform.h");
             type ConfigEntry;
+        }
+
+        #[namespace = "Util"]
+        unsafe extern "C++" {
+            include!("Util.h");
+
+            type OpaqueFunction;
+
+            unsafe fn OpaqueFunction_Call(func: *mut OpaqueFunction);
+            unsafe fn OpaqueFunction_Free(func: *mut OpaqueFunction);
         }
 
         #[repr(u32)]
@@ -201,38 +223,6 @@ pub mod platform {
             Firm_Message,
             Firm_MAC,
             AudioBitrate,
-        }
-    }
-
-    // probably invoking some 8th cardinal sin
-    struct NdsMutex {
-        mutex: Mutex<()>,
-        guard: Option<MutexGuard<'static, ()>>,
-    }
-
-    impl NdsMutex {
-        pub fn new() -> NdsMutex {
-            Self {
-                mutex: Mutex::new(()),
-                guard: None,
-            }
-        }
-
-        pub unsafe fn lock(this: *mut Self) {
-            let guard = (*this).mutex.lock().unwrap();
-            (*this).guard = Some(guard);
-        }
-
-        pub unsafe fn try_lock(
-            this: *mut Self,
-        ) -> Result<(), TryLockError<MutexGuard<'static, ()>>> {
-            let guard = (*this).mutex.try_lock()?;
-            (*this).guard = Some(guard);
-            Ok(())
-        }
-
-        pub unsafe fn unlock(this: *mut Self) {
-            (*this).guard.take();
         }
     }
 
@@ -298,6 +288,91 @@ pub mod platform {
             _ => "",
         }
         .into()
+    }
+
+    struct NdsThread {
+        inner: Option<std::thread::JoinHandle<()>>,
+    }
+
+    impl NdsThread {
+        pub fn new(func: JoinHandle<()>) -> Self {
+            Self { inner: Some(func) }
+        }
+
+        unsafe fn wait(this: *mut Self) {
+            (*this).inner.take().unwrap().join().unwrap();
+        }
+    }
+
+    use crate::melon::sys::platform::glue::{
+        OpaqueFunction, OpaqueFunction_Call, OpaqueFunction_Free,
+    };
+
+    struct OpaqueWrapper(*mut OpaqueFunction);
+
+    impl OpaqueWrapper {
+        pub unsafe fn run(&mut self) {
+            OpaqueFunction_Call(self.0);
+        }
+    }
+
+    impl Drop for OpaqueWrapper {
+        fn drop(&mut self) {
+            unsafe {
+                OpaqueFunction_Free(self.0);
+            }
+        }
+    }
+
+    unsafe impl Send for OpaqueWrapper {}
+    unsafe impl Sync for OpaqueWrapper {}
+
+    unsafe fn thread_create(func: *mut OpaqueFunction) -> *mut NdsThread {
+        let mut wrapper = OpaqueWrapper(func);
+        let nds_thread = Box::new(NdsThread::new(spawn(move || {
+            wrapper.run();
+        })));
+        Box::leak(nds_thread)
+    }
+
+    unsafe fn thread_wait(thread: *mut NdsThread) {
+        NdsThread::wait(thread);
+    }
+
+    unsafe fn thread_free(thread: *mut NdsThread) {
+        drop_in_place(thread);
+    }
+
+    // probably invoking some 8th cardinal sin
+    struct NdsMutex {
+        mutex: Mutex<()>,
+        guard: Option<MutexGuard<'static, ()>>,
+    }
+
+    impl NdsMutex {
+        pub fn new() -> NdsMutex {
+            Self {
+                mutex: Mutex::new(()),
+                guard: None,
+            }
+        }
+
+        pub unsafe fn lock(this: *mut Self) {
+            let guard = (*this).mutex.lock().unwrap();
+            (*this).guard = Some(guard);
+        }
+
+        pub unsafe fn try_lock(
+            this: *mut Self,
+        ) -> Result<(), TryLockError<MutexGuard<'static, ()>>> {
+            let guard = (*this).mutex.try_lock()?;
+            (*this).guard = Some(guard);
+            Ok(())
+        }
+
+        pub unsafe fn unlock(this: *mut Self) {
+            (*this).guard.take();
+        }
     }
 
     fn mutex_create() -> *mut NdsMutex {

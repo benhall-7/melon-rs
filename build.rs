@@ -14,6 +14,7 @@ fn main() {
     cxx_build::bridge("src/melon/sys.rs")
         .include("melonDS/src")
         .include("melonDS/src/frontend/glad")
+        .include("src/melon/cpp")
         .file("src/melon/cpp/Platform.cpp")
         .file("melonDS/src/frontend/glad/glad.c")
         .flag_if_supported("-std=c++17")
