@@ -71,7 +71,7 @@ pub mod gpu {
 pub mod platform {
     use std::{
         ptr::drop_in_place,
-        sync::{Mutex, MutexGuard, TryLockError, TryLockResult},
+        sync::{Mutex, MutexGuard, TryLockError},
         thread::{spawn, JoinHandle},
     };
 
@@ -84,6 +84,10 @@ pub mod platform {
             #[cxx_name = "Thread"]
             #[namespace = "Platform"]
             type NdsThread;
+
+            #[cxx_name = "Semaphore"]
+            #[namespace = "Platform"]
+            type NdsSemaphore;
 
             #[cxx_name = "Mutex"]
             #[namespace = "Platform"]
@@ -115,6 +119,17 @@ pub mod platform {
             unsafe fn thread_wait(thread: *mut NdsThread);
             #[cxx_name = "Thread_Free"]
             unsafe fn thread_free(thread: *mut NdsThread);
+
+            #[cxx_name = "Semaphore_Create"]
+            fn semaphore_create() -> *mut NdsSemaphore;
+            #[cxx_name = "Semaphore_Free"]
+            unsafe fn semaphore_free(sema: *mut NdsSemaphore);
+            #[cxx_name = "Semaphore_Reset"]
+            unsafe fn semaphore_reset(sema: *mut NdsSemaphore);
+            #[cxx_name = "Semaphore_Wait"]
+            unsafe fn semaphore_wait(sema: *mut NdsSemaphore);
+            #[cxx_name = "Semaphore_Post"]
+            unsafe fn semaphore_post(sema: *mut NdsSemaphore, count: i32);
 
             #[cxx_name = "Mutex_Create"]
             fn mutex_create() -> *mut NdsMutex;
@@ -334,13 +349,51 @@ pub mod platform {
         })));
         Box::leak(nds_thread)
     }
-
     unsafe fn thread_wait(thread: *mut NdsThread) {
         NdsThread::wait(thread);
     }
-
     unsafe fn thread_free(thread: *mut NdsThread) {
         drop_in_place(thread);
+    }
+
+    struct NdsSemaphore {
+        capacity: Mutex<usize>,
+    }
+
+    impl NdsSemaphore {
+        pub fn new() -> Self {
+            Self {
+                capacity: Mutex::new(0),
+            }
+        }
+    }
+
+    fn semaphore_create() -> *mut NdsSemaphore {
+        let sema = Box::new(NdsSemaphore::new());
+        Box::leak(sema)
+    }
+    // drops the semaphore
+    unsafe fn semaphore_free(sema: *mut NdsSemaphore) {
+        drop_in_place(sema);
+    }
+    // acquire all available resources
+    unsafe fn semaphore_reset(sema: *mut NdsSemaphore) {
+        *(*sema).capacity.get_mut().unwrap() = 0;
+    }
+    // get one resource
+    unsafe fn semaphore_wait(sema: *mut NdsSemaphore) {
+        loop {
+            let available = (*sema).capacity.get_mut().unwrap();
+            if *available > 0 {
+                *available -= 1;
+            }
+        }
+    }
+    // release a certain number of resources
+    // memory stuff is managed in cpp. Just add them I guess
+    unsafe fn semaphore_post(sema: *mut NdsSemaphore, count: i32) {
+        let cap = (*sema).capacity.get_mut().unwrap();
+        *cap += count as usize;
     }
 
     // probably invoking some 8th cardinal sin

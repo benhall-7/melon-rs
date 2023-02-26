@@ -64,6 +64,7 @@ namespace Platform
         return OpenFile(localPath, mode, mode[0] != 'w');
     }
 
+    // synchronization primitives
     Thread *Thread_Create(std::function<void()> func)
     {
         Util::OpaqueFunction *opaque = new Util::OpaqueFunction;
@@ -77,6 +78,26 @@ namespace Platform
     void Thread_Wait(Thread *thread)
     {
         return Glue::Thread_Wait(thread);
+    }
+
+    Semaphore* Semaphore_Create() {
+        return Glue::Semaphore_Create();
+    }
+
+    void Semaphore_Free(Semaphore* sema) {
+        return Glue::Semaphore_Free(sema);
+    }
+
+    void Semaphore_Reset(Semaphore* sema) {
+        return Glue::Semaphore_Reset(sema);
+    }
+
+    void Semaphore_Wait(Semaphore* sema) {
+        return Glue::Semaphore_Wait(sema);
+    }
+
+    void Semaphore_Post(Semaphore* sema, int count) {
+        return Glue::Semaphore_Post(sema, count);
     }
 
     Mutex *Mutex_Create()
