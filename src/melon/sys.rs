@@ -72,7 +72,7 @@ pub mod platform {
     use std::{
         ptr::drop_in_place,
         sync::{Mutex, MutexGuard, TryLockError},
-        thread::{spawn, JoinHandle},
+        thread::{spawn, JoinHandle}, collections::HashMap,
     };
 
     use crate::melon::subscriptions;
