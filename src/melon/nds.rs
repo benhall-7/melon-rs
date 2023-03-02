@@ -21,10 +21,15 @@ impl NDS {
         if res {
             let mut nds = NDS(());
             nds.set_console_type(ConsoleType::DS);
+            nds.reset();
             Ok(nds)
         } else {
             Err(())
         }
+    }
+
+    fn reset(&mut self) {
+        sys::nds::Reset();
     }
 
     fn set_console_type(&mut self, console: ConsoleType) {

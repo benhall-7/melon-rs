@@ -35,6 +35,10 @@ namespace Platform
     {
         return std::string(Glue::GetConfigString(entry));
     }
+    bool GetConfigArray(ConfigEntry entry, void *data)
+    {
+        return Glue::GetConfigArray(entry, (u8 *)data);
+    }
 
     // I might have been able to implement these two in Rust, but they presented
     // at least two challenges. The first being OpenFile has a default param. The
@@ -80,23 +84,28 @@ namespace Platform
         return Glue::Thread_Wait(thread);
     }
 
-    Semaphore* Semaphore_Create() {
+    Semaphore *Semaphore_Create()
+    {
         return Glue::Semaphore_Create();
     }
 
-    void Semaphore_Free(Semaphore* sema) {
+    void Semaphore_Free(Semaphore *sema)
+    {
         return Glue::Semaphore_Free(sema);
     }
 
-    void Semaphore_Reset(Semaphore* sema) {
+    void Semaphore_Reset(Semaphore *sema)
+    {
         return Glue::Semaphore_Reset(sema);
     }
 
-    void Semaphore_Wait(Semaphore* sema) {
+    void Semaphore_Wait(Semaphore *sema)
+    {
         return Glue::Semaphore_Wait(sema);
     }
 
-    void Semaphore_Post(Semaphore* sema, int count) {
+    void Semaphore_Post(Semaphore *sema, int count)
+    {
         return Glue::Semaphore_Post(sema, count);
     }
 
@@ -192,5 +201,9 @@ namespace Platform
     void Camera_Stop(int num)
     {
         return Glue::Camera_Stop(num);
+    }
+    void Camera_CaptureFrame(int num, u32 *frame, int width, int height, bool yuv)
+    {
+        return Glue::Camera_CaptureFrame(num, frame, width, height, yuv);
     }
 }

@@ -41,6 +41,7 @@ pub mod nds {
 
         fn Init() -> bool;
         fn DeInit();
+        fn Reset();
 
         fn SetConsoleType(console_type: i32);
 
@@ -70,9 +71,10 @@ pub mod gpu {
 #[allow(unused_variables)]
 pub mod platform {
     use std::{
+        collections::HashMap,
         ptr::drop_in_place,
         sync::{Mutex, MutexGuard, TryLockError},
-        thread::{spawn, JoinHandle}, collections::HashMap,
+        thread::{spawn, JoinHandle},
     };
 
     use crate::melon::subscriptions;
@@ -105,6 +107,14 @@ pub mod platform {
             fn camera_start(num: i32);
             #[cxx_name = "Camera_Stop"]
             fn camera_stop(num: i32);
+            #[cxx_name = "Camera_CaptureFrame"]
+            unsafe fn camera_capture_frame(
+                num: i32,
+                frame: *const u32,
+                width: i32,
+                height: i32,
+                yuv: bool,
+            );
 
             #[cxx_name = "GetConfigBool"]
             fn get_config_bool(entry: ConfigEntry) -> bool;
@@ -112,6 +122,8 @@ pub mod platform {
             fn get_config_int(entry: ConfigEntry) -> i32;
             #[cxx_name = "GetConfigString"]
             fn get_config_string(entry: ConfigEntry) -> String;
+            #[cxx_name = "GetConfigArray"]
+            unsafe fn get_config_array(entry: ConfigEntry, data: *const u8) -> bool;
 
             #[cxx_name = "Thread_Create"]
             unsafe fn thread_create(func: *mut OpaqueFunction) -> *mut NdsThread;
@@ -257,6 +269,15 @@ pub mod platform {
 
     fn camera_stop(num: i32) {}
 
+    unsafe fn camera_capture_frame(
+        num: i32,
+        frame: *const u32,
+        width: i32,
+        height: i32,
+        yuv: bool,
+    ) {
+    }
+
     use crate::config;
     use glue::ConfigEntry;
     fn get_config_bool(entry: ConfigEntry) -> bool {
@@ -303,6 +324,9 @@ pub mod platform {
             _ => "",
         }
         .into()
+    }
+    fn get_config_array(_entry: ConfigEntry, _data: *const u8) -> bool {
+        false
     }
 
     struct NdsThread {
