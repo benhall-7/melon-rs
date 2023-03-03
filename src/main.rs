@@ -1,4 +1,4 @@
-use crate::melon::init_renderer;
+use crate::melon::{init_renderer, set_render_settings};
 
 pub mod config;
 pub mod events;
@@ -20,22 +20,24 @@ fn main() {
     let mut lock = melon::nds::INSTANCE.lock().unwrap();
     let mut ds = lock.take().unwrap();
 
+    init_renderer();
+    set_render_settings();
+
+    ds.reset();
+
     ds.load_cart(
         &std::fs::read("/Users/benjamin/Desktop/ds/Ultra.nds").unwrap(),
         None,
     );
 
-    init_renderer();
-
-    println!("{}", ds.cart_inserted());
-
-    let frame = display.draw();
-
     ds.start();
 
-    ds.run_frame();
+    for _ in 0..120 {
+        ds.run_frame();
+    }
 
     ds.stop();
 
+    let frame = display.draw();
     frame.finish().unwrap();
 }

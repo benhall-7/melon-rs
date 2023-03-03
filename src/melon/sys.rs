@@ -37,7 +37,6 @@ mod glue {
 pub mod nds {
     unsafe extern "C++" {
         include!("NDS.h");
-        include!("GPU.h");
 
         fn Init() -> bool;
         fn DeInit();
@@ -64,14 +63,23 @@ pub mod gpu {
     unsafe extern "C++" {
         include!("GPU.h");
 
+        type RenderSettings;
+
+        fn SetRenderSettings(renderer: i32, settings: &mut RenderSettings);
+
         fn InitRenderer(renderer: i32);
+    }
+
+    pub struct RenderSettings {
+        pub Soft_Threaded: bool,
+        pub GL_ScaleFactor: i32,
+        pub GL_BetterPolygons: bool,
     }
 }
 
 #[allow(unused_variables)]
 pub mod platform {
     use std::{
-        collections::HashMap,
         ptr::drop_in_place,
         sync::{Mutex, MutexGuard, TryLockError},
         thread::{spawn, JoinHandle},
