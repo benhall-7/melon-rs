@@ -52,6 +52,9 @@ pub mod nds {
             savelen: u32,
         ) -> bool;
 
+        fn IsLidClosed() -> bool;
+        fn SetLidClosed(closed: bool);
+
         fn Start();
         fn Stop();
         fn RunFrame() -> u32;
@@ -218,6 +221,8 @@ pub mod platform {
 
             unsafe fn OpaqueFunction_Call(func: *mut OpaqueFunction);
             unsafe fn OpaqueFunction_Free(func: *mut OpaqueFunction);
+
+            pub unsafe fn Copy_Framebuffers(top: *mut u32, bottom: *mut u32) -> bool;
         }
 
         #[repr(u32)]

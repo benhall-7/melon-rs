@@ -1,4 +1,6 @@
 #include "Util.h"
+#include "GPU.h"
+#include "types.h"
 
 namespace Util
 {
@@ -16,5 +18,19 @@ namespace Util
     void OpaqueFunction_Free(OpaqueFunction *func)
     {
         delete func;
+    }
+
+    bool Copy_Framebuffers(u32 *top, u32 *bottom)
+    {
+        int frontbuf = GPU::FrontBuffer;
+
+        auto screens = GPU::Framebuffer[frontbuf];
+        if (!screens[0] || !screens[1]) {
+            return false;
+        }
+
+        memcpy(top, screens[0], 4 * 256 * 192);
+        memcpy(bottom, screens[1], 4 * 256 * 192);
+        return true;
     }
 }
