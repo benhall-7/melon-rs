@@ -55,6 +55,8 @@ pub mod nds {
         fn IsLidClosed() -> bool;
         fn SetLidClosed(closed: bool);
 
+        fn NeedsDirectBoot() -> bool;
+
         fn Start();
         fn Stop();
         fn RunFrame() -> u32;
@@ -223,6 +225,8 @@ pub mod platform {
             unsafe fn OpaqueFunction_Free(func: *mut OpaqueFunction);
 
             pub unsafe fn Copy_Framebuffers(top: *mut u32, bottom: *mut u32) -> bool;
+
+            pub fn NDS_SetupDirectBoot(romname: String);
         }
 
         #[repr(u32)]

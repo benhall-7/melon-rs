@@ -3,7 +3,7 @@ use cmake::Config;
 fn main() {
     println!("cargo:rerun-if-changed=src/melon/sys.rs");
     println!("cargo:rerun-if-changed=melonDS/");
-    println!("cargo:rerun-if-changed=src/melon/cpp/Platform.cpp");
+    println!("cargo:rerun-if-changed=src/melon/cpp/");
 
     // build melonDS
     let dst = Config::new("melonDS")

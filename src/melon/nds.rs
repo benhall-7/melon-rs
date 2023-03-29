@@ -69,6 +69,14 @@ impl NDS {
         }
     }
 
+    pub fn needs_direct_boot(&self) -> bool {
+        sys::nds::NeedsDirectBoot()
+    }
+
+    pub fn setup_direct_boot(&mut self, rom_name: String) {
+        sys::platform::glue::NDS_SetupDirectBoot(rom_name);
+    }
+
     pub fn start(&mut self) {
         sys::nds::Start();
     }

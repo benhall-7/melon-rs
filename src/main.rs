@@ -98,6 +98,12 @@ fn main() {
         None,
     );
 
+    println!("Needs direct boot? {:?}", ds.needs_direct_boot());
+
+    if ds.needs_direct_boot() {
+        ds.setup_direct_boot(String::from("Ultra.nds"));
+    }
+
     ds.start();
 
     events_loop.run(move |ev, _, control_flow| {
