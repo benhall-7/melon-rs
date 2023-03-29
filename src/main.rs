@@ -47,7 +47,13 @@ fn main() {
         uniform sampler2D tex;
 
         void main() {
-            color = texture(tex, v_tex_coords);
+            mat4 color_correction = mat4(
+                0.0, 0.0, 1.0, 0.0,
+                0.0, 1.0, 0.0, 0.0,
+                1.0, 0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 1.0
+            );
+            color = texture(tex, v_tex_coords) * color_correction;
         }
     "#;
 
@@ -63,26 +69,44 @@ fn main() {
 
     implement_vertex!(Vertex, position, tex_coords);
 
-    // ripped straight from tutorial until I can get something rendering in the first place
-    let vertex1 = Vertex {
+    let vertex_a1 = Vertex {
+        position: [-1.0, 1.0],
+        tex_coords: [0.0, 0.0],
+    };
+    let vertex_a2 = Vertex {
+        position: [-1.0, 0.0],
+        tex_coords: [0.0, 1.0],
+    };
+    let vertex_a3 = Vertex {
+        position: [1.0, 0.0],
+        tex_coords: [1.0, 1.0],
+    };
+    let vertex_a4 = Vertex {
+        position: [1.0, 1.0],
+        tex_coords: [1.0, 0.0],
+    };
+    let shape_a = vec![vertex_a1, vertex_a2, vertex_a3, vertex_a4];
+
+    let vertex_b1 = Vertex {
         position: [-1.0, 0.0],
         tex_coords: [0.0, 0.0],
     };
-    let vertex2 = Vertex {
-        position: [-1.0, 1.0],
+    let vertex_b2 = Vertex {
+        position: [-1.0, -1.0],
         tex_coords: [0.0, 1.0],
     };
-    let vertex3 = Vertex {
-        position: [1.0, 1.0],
+    let vertex_b3 = Vertex {
+        position: [1.0, -1.0],
         tex_coords: [1.0, 1.0],
     };
-    let vertex4 = Vertex {
+    let vertex_b4 = Vertex {
         position: [1.0, 0.0],
         tex_coords: [1.0, 0.0],
     };
-    let shape = vec![vertex1, vertex2, vertex3, vertex4];
+    let shape_b = vec![vertex_b1, vertex_b2, vertex_b3, vertex_b4];
 
-    let vertex_buffer = glium::VertexBuffer::new(&display, &shape).unwrap();
+    let vertex_buffer_a = glium::VertexBuffer::new(&display, &shape_a).unwrap();
+    let vertex_buffer_b = glium::VertexBuffer::new(&display, &shape_b).unwrap();
     let indices = glium::index::NoIndices(glium::index::PrimitiveType::TriangleFan);
 
     let mut lock = melon::nds::INSTANCE.lock().unwrap();
@@ -108,7 +132,7 @@ fn main() {
 
     events_loop.run(move |ev, _, control_flow| {
         let next_frame_time =
-            std::time::Instant::now() + std::time::Duration::from_nanos(16_666_667);
+            std::time::Instant::now() + std::time::Duration::from_secs_f64(1.0 / 60.0);
 
         ds.run_frame();
         ds.update_framebuffers();
@@ -122,19 +146,33 @@ fn main() {
             height: 192,
             format: ClientFormat::U8U8U8U8,
         };
-        // let bottom_screen =
-        //     texture::RawImage2d::from_raw_rgb_reversed(&ds.bottom_frame, (256, 192));
+        let bottom_screen = texture::RawImage2d {
+            data: Cow::Borrowed(&ds.bottom_frame),
+            width: 256,
+            height: 192,
+            format: ClientFormat::U8U8U8U8,
+        };
         let top_tex = texture::SrgbTexture2d::new(&display, top_screen).unwrap();
-        // let bottom_tex = texture::SrgbTexture2d::new(&display, bottom_screen).unwrap();
+        let bottom_tex = texture::SrgbTexture2d::new(&display, bottom_screen).unwrap();
 
-        let uniforms = uniform! {tex: &top_tex};
+        let uniforms_a = uniform! {tex: &top_tex};
+        let uniforms_b = uniform! {tex: &bottom_tex};
 
         frame
             .draw(
-                &vertex_buffer,
+                &vertex_buffer_a,
                 indices,
                 &program,
-                &uniforms,
+                &uniforms_a,
+                &Default::default(),
+            )
+            .unwrap();
+        frame
+            .draw(
+                &vertex_buffer_b,
+                indices,
+                &program,
+                &uniforms_b,
                 &Default::default(),
             )
             .unwrap();
