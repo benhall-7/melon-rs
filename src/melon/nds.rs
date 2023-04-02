@@ -40,7 +40,7 @@ impl NDS {
     }
 
     pub fn set_key_mask(&mut self, key_mask: input::NdsKey) {
-        sys::nds::SetKeyMask(key_mask.bits())
+        sys::nds::SetKeyMask(!key_mask.bits())
     }
 
     pub fn is_lid_closed(&self) -> bool {

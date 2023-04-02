@@ -5,7 +5,11 @@ use std::{
 };
 
 use glium::{
-    glutin, implement_vertex,
+    glutin::{
+        self,
+        event::{ElementState, VirtualKeyCode},
+    },
+    implement_vertex,
     texture::{self, ClientFormat},
     uniform, Surface,
 };
@@ -27,6 +31,7 @@ pub enum EmuState {
 pub struct Emu {
     pub top_frame: [u8; 256 * 192 * 4],
     pub bottom_frame: [u8; 256 * 192 * 4],
+    pub nds_input: NdsKey,
     pub state: EmuState,
 }
 
@@ -35,6 +40,7 @@ impl Emu {
         Emu {
             top_frame: [0; 256 * 192 * 4],
             bottom_frame: [0; 256 * 192 * 4],
+            nds_input: NdsKey::empty(),
             state: EmuState::Run,
         }
     }
@@ -202,11 +208,41 @@ fn main() {
         frame.finish().unwrap();
 
         *control_flow = glutin::event_loop::ControlFlow::WaitUntil(next_frame_time);
-        if let glutin::event::Event::WindowEvent { event, .. } = ev {
-            if event == glutin::event::WindowEvent::CloseRequested {
-                *control_flow = glutin::event_loop::ControlFlow::Exit;
 
-                (*emu).lock().unwrap().state = EmuState::Stop;
+        if let glutin::event::Event::WindowEvent { event, .. } = ev {
+            match event {
+                glutin::event::WindowEvent::CloseRequested => {
+                    *control_flow = glutin::event_loop::ControlFlow::Exit;
+
+                    emu.lock().unwrap().state = EmuState::Stop;
+                }
+                glutin::event::WindowEvent::KeyboardInput { input, .. } => {
+                    if input.virtual_keycode.is_none() {
+                        return;
+                    }
+                    let nds_key = match input.virtual_keycode.unwrap() {
+                        VirtualKeyCode::K => NdsKey::A,
+                        VirtualKeyCode::M => NdsKey::B,
+                        VirtualKeyCode::J => NdsKey::X,
+                        VirtualKeyCode::N => NdsKey::Y,
+                        VirtualKeyCode::W => NdsKey::Up,
+                        VirtualKeyCode::A => NdsKey::Left,
+                        VirtualKeyCode::S => NdsKey::Down,
+                        VirtualKeyCode::D => NdsKey::Right,
+                        VirtualKeyCode::Q => NdsKey::L,
+                        VirtualKeyCode::P => NdsKey::R,
+                        VirtualKeyCode::Space => NdsKey::Start,
+                        VirtualKeyCode::X => NdsKey::Select,
+                        _ => return,
+                    };
+
+                    match input.state {
+                        ElementState::Pressed => emu.lock().unwrap().nds_input.insert(nds_key),
+                        ElementState::Released => emu.lock().unwrap().nds_input.remove(nds_key),
+                    }
+                    println!("{:?}", emu.lock().unwrap().nds_input);
+                }
+                _ => {}
             }
         }
     });
@@ -236,6 +272,7 @@ fn game(emu: Arc<Mutex<Emu>>) {
 
     let mut fps = fps_clock::FpsClock::new(60);
     loop {
+        ds.set_key_mask(emu.lock().unwrap().nds_input);
         ds.run_frame();
 
         emu.lock()
