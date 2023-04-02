@@ -4,13 +4,12 @@ use once_cell::sync::Lazy;
 
 use super::sys;
 
+pub mod input;
+
 pub static INSTANCE: Lazy<Mutex<Option<NDS>>> =
     Lazy::new(|| Mutex::new(Some(NDS::new().expect("Couldn't initialize NDS"))));
 
-pub struct NDS {
-    pub top_frame: [u32; 256 * 192],
-    pub bottom_frame: [u32; 256 * 192],
-}
+pub struct NDS;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConsoleType {
@@ -22,10 +21,7 @@ impl NDS {
     fn new() -> Result<Self, ()> {
         let res = sys::nds::Init();
         if res {
-            let mut nds = NDS {
-                top_frame: [0; 256 * 192],
-                bottom_frame: [0; 256 * 192],
-            };
+            let mut nds = NDS;
             nds.set_console_type(ConsoleType::DS);
             // nds.reset();
             Ok(nds)
@@ -39,14 +35,12 @@ impl NDS {
         sys::nds::SetConsoleType(val);
     }
 
-    pub fn reset(&mut self) {
-        sys::nds::Reset();
-        self.top_frame.fill(0);
-        self.bottom_frame.fill(0);
-    }
-
     pub fn cart_inserted(&self) -> bool {
         sys::nds::CartInserted()
+    }
+
+    pub fn set_key_mask(&mut self, key_mask: input::NdsKey) {
+        sys::nds::SetKeyMask(key_mask.bits())
     }
 
     pub fn is_lid_closed(&self) -> bool {
@@ -83,8 +77,10 @@ impl NDS {
 
     pub fn stop(&mut self) {
         sys::nds::Stop();
-        self.top_frame.fill(0);
-        self.bottom_frame.fill(0);
+    }
+
+    pub fn reset(&mut self) {
+        sys::nds::Reset();
     }
 
     // Emulates a frame. Returns number of scanlines from GPU module
@@ -92,13 +88,9 @@ impl NDS {
         sys::nds::RunFrame()
     }
 
-    pub fn update_framebuffers(&mut self) -> bool {
-        unsafe {
-            sys::platform::glue::Copy_Framebuffers(
-                self.top_frame.as_mut_ptr(),
-                self.bottom_frame.as_mut_ptr(),
-            )
-        }
+    pub fn update_framebuffers(&self, dest: &mut [u8], bottom: bool) -> bool {
+        assert_eq!(dest.len(), 256 * 192 * 4); 
+        unsafe { sys::platform::glue::Copy_Framebuffers(dest.as_mut_ptr(), bottom) }
     }
 }
 

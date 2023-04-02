@@ -24,8 +24,9 @@ namespace Util
         delete func;
     }
 
-    bool Copy_Framebuffers(u32 *top, u32 *bottom)
+    bool Copy_Framebuffers(u8 *dest, bool index)
     {
+        int ind = (int)index;
         int frontbuf = GPU::FrontBuffer;
 
         auto screens = GPU::Framebuffer[frontbuf];
@@ -34,8 +35,7 @@ namespace Util
             return false;
         }
 
-        memcpy(top, screens[0], 4 * 256 * 192);
-        memcpy(bottom, screens[1], 4 * 256 * 192);
+        memcpy(dest, screens[ind], 4 * 256 * 192);
         return true;
     }
 
