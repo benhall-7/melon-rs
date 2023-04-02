@@ -56,9 +56,7 @@ fn main() {
     let emu = Arc::new(Mutex::new(Emu::new()));
 
     let game_emu = emu.clone();
-    // TODO: I should be able to move this into the render thread
-    // I need to call .join to call the destructors
-    spawn(|| game(game_emu));
+    let mut game_thread = Some(spawn(|| game(game_emu)));
 
     // 1. The **winit::EventsLoop** for handling events.
     let events_loop = glutin::event_loop::EventLoop::new();
@@ -72,37 +70,8 @@ fn main() {
     //    window with the events_loop.
     let display = glium::Display::new(wb, cb, &events_loop).unwrap();
 
-    let vertex_shader_src = r#"
-        #version 140
-
-        in vec2 position;
-        in vec2 tex_coords;
-        out vec2 v_tex_coords;
-
-        void main() {
-            v_tex_coords = tex_coords;
-            gl_Position = vec4(position, 0.0, 1.0);
-        }
-    "#;
-
-    let fragment_shader_src = r#"
-        #version 140
-
-        in vec2 v_tex_coords;
-        out vec4 color;
-
-        uniform sampler2D tex;
-
-        void main() {
-            mat4 color_correction = mat4(
-                0.0, 0.0, 1.0, 0.0,
-                0.0, 1.0, 0.0, 0.0,
-                1.0, 0.0, 0.0, 0.0,
-                0.0, 0.0, 0.0, 1.0
-            );
-            color = texture(tex, v_tex_coords) * color_correction;
-        }
-    "#;
+    let vertex_shader_src = include_str!("main.vert");
+    let fragment_shader_src = include_str!("main.frag");
 
     let program =
         glium::Program::from_source(&display, vertex_shader_src, fragment_shader_src, None)
@@ -215,6 +184,7 @@ fn main() {
                     *control_flow = glutin::event_loop::ControlFlow::Exit;
 
                     emu.lock().unwrap().state = EmuState::Stop;
+                    game_thread.take().map(|thread| thread.join());
                 }
                 WindowEvent::KeyboardInput { input, .. } => {
                     if input.virtual_keycode.is_none() {
@@ -287,4 +257,6 @@ fn game(emu: Arc<Mutex<Emu>>) {
 
         fps.tick();
     }
+
+    ds.stop();
 }
