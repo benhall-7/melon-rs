@@ -7,7 +7,7 @@ use std::{
 use glium::{
     glutin::{
         self,
-        event::{ElementState, VirtualKeyCode},
+        event::{ElementState, Event, VirtualKeyCode, WindowEvent},
     },
     implement_vertex,
     texture::{self, ClientFormat},
@@ -209,14 +209,14 @@ fn main() {
 
         *control_flow = glutin::event_loop::ControlFlow::WaitUntil(next_frame_time);
 
-        if let glutin::event::Event::WindowEvent { event, .. } = ev {
+        if let Event::WindowEvent { event, .. } = ev {
             match event {
-                glutin::event::WindowEvent::CloseRequested => {
+                WindowEvent::CloseRequested => {
                     *control_flow = glutin::event_loop::ControlFlow::Exit;
 
                     emu.lock().unwrap().state = EmuState::Stop;
                 }
-                glutin::event::WindowEvent::KeyboardInput { input, .. } => {
+                WindowEvent::KeyboardInput { input, .. } => {
                     if input.virtual_keycode.is_none() {
                         return;
                     }
@@ -240,7 +240,6 @@ fn main() {
                         ElementState::Pressed => emu.lock().unwrap().nds_input.insert(nds_key),
                         ElementState::Released => emu.lock().unwrap().nds_input.remove(nds_key),
                     }
-                    println!("{:?}", emu.lock().unwrap().nds_input);
                 }
                 _ => {}
             }
