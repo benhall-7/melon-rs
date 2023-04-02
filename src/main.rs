@@ -25,6 +25,7 @@ pub enum EmuState {
     Run,
     Pause,
     Stop,
+    Step,
 }
 
 #[derive(Debug)]
@@ -50,6 +51,13 @@ impl Default for Emu {
     fn default() -> Self {
         Emu::new()
     }
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+enum EmuKey {
+    Nds(NdsKey),
+    PlayPlause,
+    Step,
 }
 
 fn main() {
@@ -190,25 +198,46 @@ fn main() {
                     if input.virtual_keycode.is_none() {
                         return;
                     }
-                    let nds_key = match input.virtual_keycode.unwrap() {
-                        VirtualKeyCode::K => NdsKey::A,
-                        VirtualKeyCode::M => NdsKey::B,
-                        VirtualKeyCode::J => NdsKey::X,
-                        VirtualKeyCode::N => NdsKey::Y,
-                        VirtualKeyCode::W => NdsKey::Up,
-                        VirtualKeyCode::A => NdsKey::Left,
-                        VirtualKeyCode::S => NdsKey::Down,
-                        VirtualKeyCode::D => NdsKey::Right,
-                        VirtualKeyCode::Q => NdsKey::L,
-                        VirtualKeyCode::P => NdsKey::R,
-                        VirtualKeyCode::Space => NdsKey::Start,
-                        VirtualKeyCode::X => NdsKey::Select,
+                    let emu_key = match input.virtual_keycode.unwrap() {
+                        VirtualKeyCode::K => EmuKey::Nds(NdsKey::A),
+                        VirtualKeyCode::M => EmuKey::Nds(NdsKey::B),
+                        VirtualKeyCode::J => EmuKey::Nds(NdsKey::X),
+                        VirtualKeyCode::N => EmuKey::Nds(NdsKey::Y),
+                        VirtualKeyCode::W => EmuKey::Nds(NdsKey::Up),
+                        VirtualKeyCode::A => EmuKey::Nds(NdsKey::Left),
+                        VirtualKeyCode::S => EmuKey::Nds(NdsKey::Down),
+                        VirtualKeyCode::D => EmuKey::Nds(NdsKey::Right),
+                        VirtualKeyCode::Q => EmuKey::Nds(NdsKey::L),
+                        VirtualKeyCode::P => EmuKey::Nds(NdsKey::R),
+                        VirtualKeyCode::Space => EmuKey::Nds(NdsKey::Start),
+                        VirtualKeyCode::X => EmuKey::Nds(NdsKey::Select),
+                        VirtualKeyCode::Comma => EmuKey::PlayPlause,
+                        VirtualKeyCode::Period => EmuKey::Step,
                         _ => return,
                     };
 
-                    match input.state {
-                        ElementState::Pressed => emu.lock().unwrap().nds_input.insert(nds_key),
-                        ElementState::Released => emu.lock().unwrap().nds_input.remove(nds_key),
+                    match (emu_key, input.state) {
+                        (EmuKey::Nds(nds_key), state) => match state {
+                            ElementState::Pressed => emu.lock().unwrap().nds_input.insert(nds_key),
+                            ElementState::Released => emu.lock().unwrap().nds_input.remove(nds_key),
+                        },
+                        (EmuKey::PlayPlause, ElementState::Pressed) => {
+                            let emu_state = &mut emu.lock().unwrap().state;
+                            match *emu_state {
+                                EmuState::Pause | EmuState::Step => *emu_state = EmuState::Run,
+                                EmuState::Run => *emu_state = EmuState::Pause,
+                                EmuState::Stop => {}
+                            }
+                        }
+                        (EmuKey::PlayPlause, ..) => {}
+                        (EmuKey::Step, ElementState::Pressed) => {
+                            let emu_state = &mut emu.lock().unwrap().state;
+                            match *emu_state {
+                                EmuState::Stop => {}
+                                _ => *emu_state = EmuState::Step,
+                            }
+                        }
+                        (EmuKey::Step, ..) => {}
                     }
                 }
                 _ => {}
@@ -241,18 +270,26 @@ fn game(emu: Arc<Mutex<Emu>>) {
 
     let mut fps = fps_clock::FpsClock::new(60);
     loop {
-        ds.set_key_mask(emu.lock().unwrap().nds_input);
-        ds.run_frame();
+        let emu_state = emu.lock().unwrap().state;
 
-        emu.lock()
-            .map(|mut mutex| {
-                ds.update_framebuffers(&mut mutex.top_frame, false);
-                ds.update_framebuffers(&mut mutex.bottom_frame, true);
-            })
-            .unwrap();
+        match emu_state {
+            EmuState::Stop => break,
+            EmuState::Run | EmuState::Step => {
+                ds.set_key_mask(emu.lock().unwrap().nds_input);
+                ds.run_frame();
 
-        if let EmuState::Stop = emu.lock().unwrap().state {
-            break;
+                emu.lock()
+                    .map(|mut mutex| {
+                        ds.update_framebuffers(&mut mutex.top_frame, false);
+                        ds.update_framebuffers(&mut mutex.bottom_frame, true);
+                    })
+                    .unwrap();
+
+                if let EmuState::Step = emu_state {
+                    emu.lock().unwrap().state = EmuState::Pause;
+                }
+            }
+            EmuState::Pause => {}
         }
 
         fps.tick();
