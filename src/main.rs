@@ -263,7 +263,7 @@ fn game(emu: Arc<Mutex<Emu>>) {
 
     ds.load_cart(
         &std::fs::read("/Users/benjamin/Desktop/ds/Ultra.nds").unwrap(),
-        std::fs::read("./save.bin").ok().as_deref(),
+        std::fs::read("save.bin").ok().as_deref(),
     );
 
     println!("Needs direct boot? {:?}", ds.needs_direct_boot());
