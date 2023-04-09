@@ -1,5 +1,6 @@
 use std::{
     borrow::Cow,
+    path::PathBuf,
     sync::{Arc, Mutex},
     thread::spawn,
 };
@@ -14,7 +15,7 @@ use glium::{
     uniform, Surface,
 };
 
-use crate::melon::{init_renderer, nds::input::NdsKey, set_render_settings};
+use crate::melon::{init_renderer, nds::input::NdsKey, set_render_settings, save};
 
 pub mod config;
 pub mod events;
@@ -53,11 +54,12 @@ impl Default for Emu {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone)]
 enum EmuKey {
     Nds(NdsKey),
     PlayPlause,
     Step,
+    Save(PathBuf),
 }
 
 fn main() {
@@ -213,6 +215,7 @@ fn main() {
                         VirtualKeyCode::X => EmuKey::Nds(NdsKey::Select),
                         VirtualKeyCode::Comma => EmuKey::PlayPlause,
                         VirtualKeyCode::Period => EmuKey::Step,
+                        VirtualKeyCode::Z => EmuKey::Save(PathBuf::from("save.bin")),
                         _ => return,
                     };
 
@@ -238,6 +241,9 @@ fn main() {
                             }
                         }
                         (EmuKey::Step, ..) => {}
+                        (EmuKey::Save(path), ..) => {
+                            spawn(|| save::update_save(path));
+                        }
                     }
                 }
                 _ => {}
@@ -257,7 +263,7 @@ fn game(emu: Arc<Mutex<Emu>>) {
 
     ds.load_cart(
         &std::fs::read("/Users/benjamin/Desktop/ds/Ultra.nds").unwrap(),
-        None,
+        std::fs::read("./save.bin").ok().as_deref(),
     );
 
     println!("Needs direct boot? {:?}", ds.needs_direct_boot());

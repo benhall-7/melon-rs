@@ -87,11 +87,12 @@ pub mod gpu {
 pub mod platform {
     use std::{
         ptr::drop_in_place,
+        slice,
         sync::{Mutex, MutexGuard, TryLockError},
         thread::{spawn, JoinHandle},
     };
 
-    use crate::melon::subscriptions;
+    use crate::melon::{save::write_save, subscriptions};
 
     #[cxx::bridge]
     pub mod glue {
@@ -532,7 +533,11 @@ pub mod platform {
     fn mp_end() {}
 
     unsafe fn write_nds_save(savedata: *const u8, savelen: u32, writeoffset: u32, writelen: u32) {
-        // TODO
+        write_save(
+            slice::from_raw_parts(savedata, savelen as usize),
+            writeoffset as usize,
+            writelen as usize,
+        );
     }
 }
 

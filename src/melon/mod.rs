@@ -1,9 +1,11 @@
 pub mod nds;
 pub mod subscriptions;
+pub mod save;
 pub(self) mod sys;
 
 use crate::melon::sys::gpu::RenderSettings;
 
+// TODO: move these somewhere reasonable lol
 pub fn init_renderer() {
     sys::gpu::InitRenderer(0);
 }
