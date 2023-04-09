@@ -15,7 +15,7 @@ use glium::{
     uniform, Surface,
 };
 
-use crate::melon::{init_renderer, nds::input::NdsKey, set_render_settings, save};
+use crate::melon::{init_renderer, nds::input::NdsKey, save, set_render_settings};
 
 pub mod config;
 pub mod events;
@@ -241,9 +241,10 @@ fn main() {
                             }
                         }
                         (EmuKey::Step, ..) => {}
-                        (EmuKey::Save(path), ..) => {
+                        (EmuKey::Save(path), ElementState::Pressed) => {
                             spawn(|| save::update_save(path));
                         }
+                        (EmuKey::Save(_), ..) => {}
                     }
                 }
                 _ => {}
