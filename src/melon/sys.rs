@@ -1,10 +1,3 @@
-#[cxx::bridge]
-mod ffi {
-    extern "C++" {
-        // #[cxx_name = "FILE"]
-        // type CFile;
-    }
-}
 
 mod glue {
     use std::path::PathBuf;
@@ -37,6 +30,7 @@ mod glue {
 pub mod nds {
     unsafe extern "C++" {
         include!("NDS.h");
+        // include!("Savestate.h");
 
         fn Init() -> bool;
         fn DeInit();
@@ -61,8 +55,17 @@ pub mod nds {
         fn Start();
         fn Stop();
         fn RunFrame() -> u32;
+
+        // unsafe fn DoSavestate(savestate: *mut Savestate) -> bool;
     }
 }
+
+// #[cxx::bridge]
+// pub mod savestate {
+//     unsafe extern "C++" {
+//         type Savestate;
+//     }
+// }
 
 #[cxx::bridge(namespace = "GPU")]
 pub mod gpu {
@@ -540,5 +543,3 @@ pub mod platform {
         );
     }
 }
-
-pub use ffi::*;

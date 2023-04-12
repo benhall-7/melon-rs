@@ -1,7 +1,7 @@
 pub mod nds;
 pub mod subscriptions;
 pub mod save;
-pub(self) mod sys;
+pub mod sys;
 
 use crate::melon::sys::gpu::RenderSettings;
 
