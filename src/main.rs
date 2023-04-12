@@ -1,25 +1,21 @@
 use std::{
-    borrow::Cow,
     path::PathBuf,
     sync::{Arc, Mutex},
     thread::spawn,
 };
 
-use glium::{
-    glutin::{
-        self,
-        event::{ElementState, Event, VirtualKeyCode, WindowEvent},
-    },
-    implement_vertex,
-    texture::{self, ClientFormat},
-    uniform, Surface,
+use glium::glutin::{
+    self,
+    event::{ElementState, Event, VirtualKeyCode, WindowEvent},
 };
+use window::{draw, get_draw_data};
 
 use crate::melon::{nds::input::NdsKey, save};
 
 pub mod config;
 pub mod events;
 pub mod melon;
+pub mod window;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum EmuState {
@@ -68,72 +64,17 @@ fn main() {
     let game_emu = emu.clone();
     let mut game_thread = Some(spawn(|| game(game_emu)));
 
-    // 1. The **winit::EventsLoop** for handling events.
     let events_loop = glutin::event_loop::EventLoop::new();
-    // 2. Parameters for building the Window.
-    let wb = glutin::window::WindowBuilder::new()
-        .with_inner_size(glutin::dpi::LogicalSize::new(256.0, 192.0 * 2.0))
-        .with_title("melon-rs");
-    // 3. Parameters for building the OpenGL context.
-    let cb = glutin::ContextBuilder::new();
-    // 4. Build the Display with the given window and OpenGL context parameters and register the
-    //    window with the events_loop.
-    let display = glium::Display::new(wb, cb, &events_loop).unwrap();
+    let display = glium::Display::new(
+        glutin::window::WindowBuilder::new()
+            .with_inner_size(glutin::dpi::LogicalSize::new(256.0, 192.0 * 2.0))
+            .with_title("melon-rs"),
+        glutin::ContextBuilder::new(),
+        &events_loop,
+    )
+    .unwrap();
 
-    let vertex_shader_src = include_str!("main.vert");
-    let fragment_shader_src = include_str!("main.frag");
-
-    let program =
-        glium::Program::from_source(&display, vertex_shader_src, fragment_shader_src, None)
-            .unwrap();
-
-    #[derive(Copy, Clone)]
-    struct Vertex {
-        position: [f32; 2],
-        tex_coords: [f32; 2],
-    }
-
-    implement_vertex!(Vertex, position, tex_coords);
-
-    let vertex_a1 = Vertex {
-        position: [-1.0, 1.0],
-        tex_coords: [0.0, 0.0],
-    };
-    let vertex_a2 = Vertex {
-        position: [-1.0, 0.0],
-        tex_coords: [0.0, 1.0],
-    };
-    let vertex_a3 = Vertex {
-        position: [1.0, 0.0],
-        tex_coords: [1.0, 1.0],
-    };
-    let vertex_a4 = Vertex {
-        position: [1.0, 1.0],
-        tex_coords: [1.0, 0.0],
-    };
-    let shape_a = vec![vertex_a1, vertex_a2, vertex_a3, vertex_a4];
-
-    let vertex_b1 = Vertex {
-        position: [-1.0, 0.0],
-        tex_coords: [0.0, 0.0],
-    };
-    let vertex_b2 = Vertex {
-        position: [-1.0, -1.0],
-        tex_coords: [0.0, 1.0],
-    };
-    let vertex_b3 = Vertex {
-        position: [1.0, -1.0],
-        tex_coords: [1.0, 1.0],
-    };
-    let vertex_b4 = Vertex {
-        position: [1.0, 0.0],
-        tex_coords: [1.0, 0.0],
-    };
-    let shape_b = vec![vertex_b1, vertex_b2, vertex_b3, vertex_b4];
-
-    let vertex_buffer_a = glium::VertexBuffer::new(&display, &shape_a).unwrap();
-    let vertex_buffer_b = glium::VertexBuffer::new(&display, &shape_b).unwrap();
-    let indices = glium::index::NoIndices(glium::index::PrimitiveType::TriangleFan);
+    let draw_data = get_draw_data(&display);
 
     events_loop.run(move |ev, _target, control_flow| {
         let next_frame_time =
@@ -144,47 +85,7 @@ fn main() {
             (emu_lock.top_frame, emu_lock.bottom_frame)
         };
 
-        let mut frame = display.draw();
-
-        frame.clear_color(0.0, 0.0, 0.0, 1.0);
-        let top_screen = texture::RawImage2d {
-            data: Cow::Borrowed(&top_frame),
-            width: 256,
-            height: 192,
-            format: ClientFormat::U8U8U8U8,
-        };
-        let bottom_screen = texture::RawImage2d {
-            data: Cow::Borrowed(&bottom_frame),
-            width: 256,
-            height: 192,
-            format: ClientFormat::U8U8U8U8,
-        };
-        let top_tex = texture::SrgbTexture2d::new(&display, top_screen).unwrap();
-        let bottom_tex = texture::SrgbTexture2d::new(&display, bottom_screen).unwrap();
-
-        let uniforms_a = uniform! {tex: &top_tex};
-        let uniforms_b = uniform! {tex: &bottom_tex};
-
-        frame
-            .draw(
-                &vertex_buffer_a,
-                indices,
-                &program,
-                &uniforms_a,
-                &Default::default(),
-            )
-            .unwrap();
-        frame
-            .draw(
-                &vertex_buffer_b,
-                indices,
-                &program,
-                &uniforms_b,
-                &Default::default(),
-            )
-            .unwrap();
-
-        frame.finish().unwrap();
+        draw(&display, &draw_data, &top_frame, &bottom_frame);
 
         *control_flow = glutin::event_loop::ControlFlow::WaitUntil(next_frame_time);
 
