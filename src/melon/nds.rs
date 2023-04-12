@@ -23,7 +23,11 @@ impl NDS {
         if res {
             let mut nds = NDS;
             nds.set_console_type(ConsoleType::DS);
-            // nds.reset();
+            
+            nds.init_renderer();
+            nds.set_render_settings();
+            nds.reset();
+
             Ok(nds)
         } else {
             Err(())
@@ -89,8 +93,23 @@ impl NDS {
     }
 
     pub fn update_framebuffers(&self, dest: &mut [u8], bottom: bool) -> bool {
-        assert_eq!(dest.len(), 256 * 192 * 4); 
+        assert_eq!(dest.len(), 256 * 192 * 4);
         unsafe { sys::platform::glue::Copy_Framebuffers(dest.as_mut_ptr(), bottom) }
+    }
+
+    pub fn set_render_settings(&mut self) {
+        sys::gpu::SetRenderSettings(
+            0,
+            &mut sys::gpu::RenderSettings {
+                Soft_Threaded: false,
+                GL_ScaleFactor: 1,
+                GL_BetterPolygons: false,
+            },
+        );
+    }
+
+    fn init_renderer(&mut self) {
+        sys::gpu::InitRenderer(0);
     }
 }
 

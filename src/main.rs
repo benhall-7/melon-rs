@@ -15,7 +15,7 @@ use glium::{
     uniform, Surface,
 };
 
-use crate::melon::{init_renderer, nds::input::NdsKey, save, set_render_settings};
+use crate::melon::{nds::input::NdsKey, save};
 
 pub mod config;
 pub mod events;
@@ -256,11 +256,6 @@ fn main() {
 fn game(emu: Arc<Mutex<Emu>>) {
     let mut lock = melon::nds::INSTANCE.lock().unwrap();
     let mut ds = lock.take().unwrap();
-
-    init_renderer();
-    set_render_settings();
-
-    ds.reset();
 
     ds.load_cart(
         &std::fs::read("/Users/benjamin/Desktop/ds/Ultra.nds").unwrap(),
