@@ -127,6 +127,9 @@ fn main() {
                             }
                         },
                         EmuAction::PlayPlause => {
+                            if let ElementState::Released = state {
+                                return;
+                            }
                             let emu_state = &mut emu.lock().unwrap().state;
                             match *emu_state {
                                 EmuState::Pause | EmuState::Step => *emu_state = EmuState::Run,
@@ -135,6 +138,9 @@ fn main() {
                             }
                         }
                         EmuAction::Step => {
+                            if let ElementState::Released = state {
+                                return;
+                            }
                             let emu_state = &mut emu.lock().unwrap().state;
                             match *emu_state {
                                 EmuState::Stop => {}
@@ -142,6 +148,9 @@ fn main() {
                             }
                         }
                         EmuAction::Save(path) => {
+                            if let ElementState::Released = state {
+                                return;
+                            }
                             spawn(|| save::update_save(path.into()));
                         }
                     }
