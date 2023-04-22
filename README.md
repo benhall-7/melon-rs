@@ -21,6 +21,7 @@ So far, only Kirby Super Star Ultra has been tested, as this is the only game I 
 ## todo
 
 - Savestate support
+- Input recording and playback
 - Audio support
 - Scripting environment
 - Code hooking
