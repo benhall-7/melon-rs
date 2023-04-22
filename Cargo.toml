@@ -6,10 +6,13 @@ license = "GPL-3.0"
 
 [dependencies]
 glium = "0.32.1"
+winit = { version = "*", features = ["serde"] }
 cxx = "1.0"
 once_cell = "1.16.0"
 bitflags = "2.0.2"
 fps_clock = "2.0.0"
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9.21"
 
 [build-dependencies]
 cmake = "0.1"

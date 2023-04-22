@@ -1,0 +1,66 @@
+key_map:
+- input:
+    key_code: Comma
+    modifiers: null
+  action: PlayPlause
+- input:
+    key_code: Period
+    modifiers: null
+  action: Step
+- input:
+    key_code: S
+    modifiers:
+      shift: false
+      ctrl: true
+      alt: false
+      logo: false
+  action: !Save save.bin
+
+- input:
+    key_code: K
+    modifiers: null
+  action: !NdsKey A
+- input:
+    key_code: M
+    modifiers: null
+  action: !NdsKey B
+- input:
+    key_code: J
+    modifiers: null
+  action: !NdsKey X
+- input:
+    key_code: N
+    modifiers: null
+  action: !NdsKey Y
+- input:
+    key_code: W
+    modifiers: null
+  action: !NdsKey Up
+- input:
+    key_code: A
+    modifiers: null
+  action: !NdsKey Left
+- input:
+    key_code: S
+    modifiers: null
+  action: !NdsKey Down
+- input:
+    key_code: D
+    modifiers: null
+  action: !NdsKey Right
+- input:
+    key_code: Q
+    modifiers: null
+  action: !NdsKey L
+- input:
+    key_code: P
+    modifiers: null
+  action: !NdsKey R
+- input:
+    key_code: Space
+    modifiers: null
+  action: !NdsKey Start
+- input:
+    key_code: X
+    modifiers: null
+  action: !NdsKey Select

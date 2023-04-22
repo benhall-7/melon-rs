@@ -4,13 +4,16 @@ use std::{
     thread::spawn,
 };
 
+use config::{Config, ConfigFile, EmuAction, EmuInput};
 use glium::glutin::{
     self,
     event::{ElementState, Event, VirtualKeyCode, WindowEvent},
 };
+use melon::nds::input::NdsKey;
 use window::{draw, get_draw_data};
+use winit::event::ModifiersState;
 
-use crate::melon::{nds::input::NdsKey, save};
+use crate::melon::{nds::input::NdsKeyMask, save};
 
 pub mod config;
 pub mod events;
@@ -29,7 +32,8 @@ pub enum EmuState {
 pub struct Emu {
     pub top_frame: [u8; 256 * 192 * 4],
     pub bottom_frame: [u8; 256 * 192 * 4],
-    pub nds_input: NdsKey,
+    pub nds_input: NdsKeyMask,
+    pub key_modifiers: ModifiersState,
     pub state: EmuState,
 }
 
@@ -38,7 +42,8 @@ impl Emu {
         Emu {
             top_frame: [0; 256 * 192 * 4],
             bottom_frame: [0; 256 * 192 * 4],
-            nds_input: NdsKey::empty(),
+            nds_input: NdsKeyMask::empty(),
+            key_modifiers: ModifiersState::empty(),
             state: EmuState::Run,
         }
     }
@@ -50,15 +55,13 @@ impl Default for Emu {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
-enum EmuKey {
-    Nds(NdsKey),
-    PlayPlause,
-    Step,
-    Save(PathBuf),
-}
-
 fn main() {
+    let config: Config = std::fs::read_to_string("config.yml")
+        .ok()
+        .and_then(|yml| serde_yaml::from_str::<ConfigFile>(&yml).ok())
+        .map(Into::into)
+        .unwrap_or_default();
+
     let emu = Arc::new(Mutex::new(Emu::new()));
 
     let game_emu = emu.clone();
@@ -97,35 +100,33 @@ fn main() {
                     emu.lock().unwrap().state = EmuState::Stop;
                     game_thread.take().map(|thread| thread.join());
                 }
+                WindowEvent::ModifiersChanged(modifiers) => {
+                    emu.lock().unwrap().key_modifiers = modifiers;
+                }
                 WindowEvent::KeyboardInput { input, .. } => {
                     if input.virtual_keycode.is_none() {
                         return;
                     }
-                    let emu_key = match input.virtual_keycode.unwrap() {
-                        VirtualKeyCode::K => EmuKey::Nds(NdsKey::A),
-                        VirtualKeyCode::M => EmuKey::Nds(NdsKey::B),
-                        VirtualKeyCode::J => EmuKey::Nds(NdsKey::X),
-                        VirtualKeyCode::N => EmuKey::Nds(NdsKey::Y),
-                        VirtualKeyCode::W => EmuKey::Nds(NdsKey::Up),
-                        VirtualKeyCode::A => EmuKey::Nds(NdsKey::Left),
-                        VirtualKeyCode::S => EmuKey::Nds(NdsKey::Down),
-                        VirtualKeyCode::D => EmuKey::Nds(NdsKey::Right),
-                        VirtualKeyCode::Q => EmuKey::Nds(NdsKey::L),
-                        VirtualKeyCode::P => EmuKey::Nds(NdsKey::R),
-                        VirtualKeyCode::Space => EmuKey::Nds(NdsKey::Start),
-                        VirtualKeyCode::X => EmuKey::Nds(NdsKey::Select),
-                        VirtualKeyCode::Comma => EmuKey::PlayPlause,
-                        VirtualKeyCode::Period => EmuKey::Step,
-                        VirtualKeyCode::Z => EmuKey::Save(PathBuf::from("save.bin")),
-                        _ => return,
+                    let modifiers = emu.lock().unwrap().key_modifiers;
+                    let emu_key = match config.key_map.get(&EmuInput {
+                        key_code: input.virtual_keycode.unwrap(),
+                        modifiers,
+                    }) {
+                        Some(action) => action.to_owned(),
+                        None => return,
                     };
 
-                    match (emu_key, input.state) {
-                        (EmuKey::Nds(nds_key), state) => match state {
-                            ElementState::Pressed => emu.lock().unwrap().nds_input.insert(nds_key),
-                            ElementState::Released => emu.lock().unwrap().nds_input.remove(nds_key),
+                    let state = input.state;
+                    match emu_key {
+                        EmuAction::NdsKey(nds_key) => match state {
+                            ElementState::Pressed => {
+                                emu.lock().unwrap().nds_input.insert(nds_key.into())
+                            }
+                            ElementState::Released => {
+                                emu.lock().unwrap().nds_input.remove(nds_key.into())
+                            }
                         },
-                        (EmuKey::PlayPlause, ElementState::Pressed) => {
+                        EmuAction::PlayPlause => {
                             let emu_state = &mut emu.lock().unwrap().state;
                             match *emu_state {
                                 EmuState::Pause | EmuState::Step => *emu_state = EmuState::Run,
@@ -133,19 +134,16 @@ fn main() {
                                 EmuState::Stop => {}
                             }
                         }
-                        (EmuKey::PlayPlause, ..) => {}
-                        (EmuKey::Step, ElementState::Pressed) => {
+                        EmuAction::Step => {
                             let emu_state = &mut emu.lock().unwrap().state;
                             match *emu_state {
                                 EmuState::Stop => {}
                                 _ => *emu_state = EmuState::Step,
                             }
                         }
-                        (EmuKey::Step, ..) => {}
-                        (EmuKey::Save(path), ElementState::Pressed) => {
-                            spawn(|| save::update_save(path));
+                        EmuAction::Save(path) => {
+                            spawn(|| save::update_save(path.into()));
                         }
-                        (EmuKey::Save(_), ..) => {}
                     }
                 }
                 _ => {}

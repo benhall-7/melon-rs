@@ -1,8 +1,25 @@
 use bitflags::bitflags;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum NdsKey {
+    A,
+    B,
+    Select,
+    Start,
+    Right,
+    Left,
+    Up,
+    Down,
+    R,
+    L,
+    X,
+    Y,
+}
 
 bitflags! {
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-    pub struct NdsKey: u32 {
+    pub struct NdsKeyMask: u32 {
         const A = 0b0000_0000_0001;
         const B = 0b0000_0000_0010;
         const Select = 0b0000_0000_0100;
@@ -15,5 +32,24 @@ bitflags! {
         const L = 0b0010_0000_0000;
         const X = 0b0100_0000_0000;
         const Y = 0b1000_0000_0000;
+    }
+}
+
+impl From<NdsKey> for NdsKeyMask {
+    fn from(value: NdsKey) -> Self {
+        match value {
+            NdsKey::A => NdsKeyMask::A,
+            NdsKey::B => NdsKeyMask::B,
+            NdsKey::Select => NdsKeyMask::Select,
+            NdsKey::Start => NdsKeyMask::Start,
+            NdsKey::Right => NdsKeyMask::Right,
+            NdsKey::Left => NdsKeyMask::Left,
+            NdsKey::Up => NdsKeyMask::Up,
+            NdsKey::Down => NdsKeyMask::Down,
+            NdsKey::R => NdsKeyMask::R,
+            NdsKey::L => NdsKeyMask::L,
+            NdsKey::X => NdsKeyMask::X,
+            NdsKey::Y => NdsKeyMask::Y,
+        }
     }
 }

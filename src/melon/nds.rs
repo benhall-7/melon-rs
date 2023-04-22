@@ -43,7 +43,7 @@ impl NDS {
         sys::nds::CartInserted()
     }
 
-    pub fn set_key_mask(&mut self, key_mask: input::NdsKey) {
+    pub fn set_key_mask(&mut self, key_mask: input::NdsKeyMask) {
         sys::nds::SetKeyMask(!key_mask.bits())
     }
 
