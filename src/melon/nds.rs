@@ -9,7 +9,7 @@ pub mod input;
 pub static INSTANCE: Lazy<Mutex<Option<NDS>>> =
     Lazy::new(|| Mutex::new(Some(NDS::new().expect("Couldn't initialize NDS"))));
 
-pub struct NDS;
+pub struct NDS(());
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConsoleType {
@@ -21,7 +21,7 @@ impl NDS {
     fn new() -> Result<Self, ()> {
         let res = sys::nds::Init();
         if res {
-            let mut nds = NDS;
+            let mut nds = NDS(());
             nds.set_console_type(ConsoleType::DS);
             
             nds.init_renderer();
