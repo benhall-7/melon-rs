@@ -22,6 +22,7 @@ So far, only Kirby Super Star Ultra has been tested, as this is the only game I 
 ## todo
 
 - Input recording and playback
+- Touch screen support
 - Audio support
 - Scripting environment
 - Code hooking
