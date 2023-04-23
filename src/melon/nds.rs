@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use std::{sync::Mutex, path::Path};
 
 use once_cell::sync::Lazy;
 
@@ -106,6 +106,14 @@ impl NDS {
                 GL_BetterPolygons: false,
             },
         );
+    }
+
+    pub fn read_savestate(&mut self, file: String) -> bool {
+        sys::platform::glue::ReadSavestate(file)
+    }
+
+    pub fn write_savestate(&mut self, file: String) -> bool {
+        sys::platform::glue::WriteSavestate(file)
     }
 
     fn init_renderer(&mut self) {

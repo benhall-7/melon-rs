@@ -12,4 +12,7 @@ namespace Util
     bool Copy_Framebuffers(u8 *dest, bool index);
 
     void NDS_SetupDirectBoot(rust::String romname);
+
+    bool ReadSavestate(rust::String filename);
+    bool WriteSavestate(rust::String filename);
 }

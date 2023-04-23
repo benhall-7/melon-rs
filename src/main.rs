@@ -13,7 +13,7 @@ use melon::nds::input::NdsKey;
 use window::{draw, get_draw_data};
 use winit::event::ModifiersState;
 
-use crate::melon::{nds::input::NdsKeyMask, save};
+use crate::melon::{nds::input::NdsKeyMask, save, sys::glue::localize_path};
 
 pub mod config;
 pub mod events;
@@ -35,6 +35,8 @@ pub struct Emu {
     pub nds_input: NdsKeyMask,
     pub key_modifiers: ModifiersState,
     pub state: EmuState,
+    pub savestate_write_request: Option<String>,
+    pub savestate_read_request: Option<String>,
 }
 
 impl Emu {
@@ -45,6 +47,8 @@ impl Emu {
             nds_input: NdsKeyMask::empty(),
             key_modifiers: ModifiersState::empty(),
             state: EmuState::Run,
+            savestate_read_request: None,
+            savestate_write_request: None,
         }
     }
 }
@@ -153,6 +157,18 @@ fn main() {
                             }
                             spawn(|| save::update_save(path.into()));
                         }
+                        EmuAction::ReadSavestate(path) => {
+                            if let ElementState::Released = state {
+                                return;
+                            }
+                            emu.lock().unwrap().savestate_read_request = Some(path);
+                        }
+                        EmuAction::WriteSavestate(path) => {
+                            if let ElementState::Released = state {
+                                return;
+                            }
+                            emu.lock().unwrap().savestate_write_request = Some(path);
+                        }
                     }
                 }
                 _ => {}
@@ -201,6 +217,23 @@ fn game(emu: Arc<Mutex<Emu>>) {
             }
             EmuState::Pause => {}
         }
+
+        let (savestate_read_request, savestate_write_request) = emu
+            .lock()
+            .map(|mut lock| {
+                (
+                    lock.savestate_read_request.take(),
+                    lock.savestate_write_request.take(),
+                )
+            })
+            .unwrap();
+
+        savestate_read_request
+            .map(localize_path)
+            .map(|read_path| ds.read_savestate(read_path));
+        savestate_write_request
+            .map(localize_path)
+            .map(|write_path| ds.write_savestate(write_path));
 
         fps.tick();
     }

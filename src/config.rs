@@ -42,6 +42,8 @@ pub enum EmuAction {
     PlayPlause,
     Step,
     Save(String),
+    ReadSavestate(String),
+    WriteSavestate(String),
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]

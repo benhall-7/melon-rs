@@ -43,4 +43,16 @@ namespace Util
     {
         NDS::SetupDirectBoot(std::string(romname));
     }
+
+    bool ReadSavestate(rust::String filename)
+    {
+        Savestate state(std::string(filename), false);
+        return NDS::DoSavestate(&state);
+    }
+
+    bool WriteSavestate(rust::String filename)
+    {
+        Savestate state(std::string(filename), true);
+        return NDS::DoSavestate(&state);
+    }
 }

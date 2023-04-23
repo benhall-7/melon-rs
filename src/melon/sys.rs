@@ -1,5 +1,7 @@
+// Abandon hope, all ye who enter here
+#![allow(clippy::missing_safety_doc)]
 
-mod glue {
+pub mod glue {
     use std::path::PathBuf;
 
     #[cxx::bridge(namespace = "Rust")]
@@ -10,7 +12,7 @@ mod glue {
         }
     }
 
-    fn localize_path(path: String) -> String {
+    pub fn localize_path(path: String) -> String {
         let pathbuf = PathBuf::from(path);
         if pathbuf.is_absolute() {
             pathbuf.to_string_lossy().into()
@@ -20,6 +22,7 @@ mod glue {
                 .parent()
                 .expect("Failed to get path to current executable's parent folder")
                 .join("melon")
+                .join(pathbuf)
                 .to_string_lossy()
                 .into()
         }
@@ -30,7 +33,6 @@ mod glue {
 pub mod nds {
     unsafe extern "C++" {
         include!("NDS.h");
-        // include!("Savestate.h");
 
         fn Init() -> bool;
         fn DeInit();
@@ -55,17 +57,8 @@ pub mod nds {
         fn Start();
         fn Stop();
         fn RunFrame() -> u32;
-
-        // unsafe fn DoSavestate(savestate: *mut Savestate) -> bool;
     }
 }
-
-// #[cxx::bridge]
-// pub mod savestate {
-//     unsafe extern "C++" {
-//         type Savestate;
-//     }
-// }
 
 #[cxx::bridge(namespace = "GPU")]
 pub mod gpu {
@@ -232,6 +225,9 @@ pub mod platform {
             pub unsafe fn Copy_Framebuffers(dest: *mut u8, index: bool) -> bool;
 
             pub fn NDS_SetupDirectBoot(romname: String);
+
+            pub fn ReadSavestate(filename: String) -> bool;
+            pub fn WriteSavestate(filename: String) -> bool;
         }
 
         #[repr(u32)]

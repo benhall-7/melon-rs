@@ -1,4 +1,5 @@
 key_map:
+# general actions
 - input:
     key_code: Comma
     modifiers: null
@@ -15,7 +16,20 @@ key_map:
       alt: false
       logo: false
   action: !Save save.bin
-
+# savestates
+- input:
+    key_code: Key1
+    modifiers: null
+  action: !ReadSavestate savestate_1.bin
+- input:
+    key_code: Key1
+    modifiers:
+      shift: true
+      ctrl: false
+      alt: false
+      logo: false
+  action: !WriteSavestate savestate_1.bin
+# emulator controls
 - input:
     key_code: K
     modifiers: null
