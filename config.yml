@@ -22,6 +22,42 @@ key_map:
     modifiers: null
   action: !ReadSavestate savestate_1.bin
 - input:
+    key_code: Key2
+    modifiers: null
+  action: !ReadSavestate savestate_2.bin
+- input:
+    key_code: Key3
+    modifiers: null
+  action: !ReadSavestate savestate_3.bin
+- input:
+    key_code: Key4
+    modifiers: null
+  action: !ReadSavestate savestate_4.bin
+- input:
+    key_code: Key5
+    modifiers: null
+  action: !ReadSavestate savestate_5.bin
+- input:
+    key_code: Key6
+    modifiers: null
+  action: !ReadSavestate savestate_6.bin
+- input:
+    key_code: Key7
+    modifiers: null
+  action: !ReadSavestate savestate_7.bin
+- input:
+    key_code: Key8
+    modifiers: null
+  action: !ReadSavestate savestate_8.bin
+- input:
+    key_code: Key9
+    modifiers: null
+  action: !ReadSavestate savestate_9.bin
+- input:
+    key_code: Key0
+    modifiers: null
+  action: !ReadSavestate savestate_10.bin
+- input:
     key_code: Key1
     modifiers:
       shift: true
@@ -29,6 +65,78 @@ key_map:
       alt: false
       logo: false
   action: !WriteSavestate savestate_1.bin
+- input:
+    key_code: Key2
+    modifiers:
+      shift: true
+      ctrl: false
+      alt: false
+      logo: false
+  action: !WriteSavestate savestate_2.bin
+- input:
+    key_code: Key3
+    modifiers:
+      shift: true
+      ctrl: false
+      alt: false
+      logo: false
+  action: !WriteSavestate savestate_3.bin
+- input:
+    key_code: Key4
+    modifiers:
+      shift: true
+      ctrl: false
+      alt: false
+      logo: false
+  action: !WriteSavestate savestate_4.bin
+- input:
+    key_code: Key5
+    modifiers:
+      shift: true
+      ctrl: false
+      alt: false
+      logo: false
+  action: !WriteSavestate savestate_5.bin
+- input:
+    key_code: Key6
+    modifiers:
+      shift: true
+      ctrl: false
+      alt: false
+      logo: false
+  action: !WriteSavestate savestate_6.bin
+- input:
+    key_code: Key7
+    modifiers:
+      shift: true
+      ctrl: false
+      alt: false
+      logo: false
+  action: !WriteSavestate savestate_7.bin
+- input:
+    key_code: Key8
+    modifiers:
+      shift: true
+      ctrl: false
+      alt: false
+      logo: false
+  action: !WriteSavestate savestate_8.bin
+- input:
+    key_code: Key9
+    modifiers:
+      shift: true
+      ctrl: false
+      alt: false
+      logo: false
+  action: !WriteSavestate savestate_9.bin
+- input:
+    key_code: Key0
+    modifiers:
+      shift: true
+      ctrl: false
+      alt: false
+      logo: false
+  action: !WriteSavestate savestate_10.bin
 # emulator controls
 - input:
     key_code: K

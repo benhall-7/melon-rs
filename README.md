@@ -13,6 +13,7 @@ This code is licensed under GPL v3. To understand the terms, review the `LICENSE
 - Frame step button
 - Save file loading
 - Input configurability (via the `config.yml` file)
+- Savestate support
 
 ## games
 
@@ -20,7 +21,6 @@ So far, only Kirby Super Star Ultra has been tested, as this is the only game I 
 
 ## todo
 
-- Savestate support
 - Input recording and playback
 - Audio support
 - Scripting environment
