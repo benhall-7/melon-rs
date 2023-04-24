@@ -1,5 +1,4 @@
 use std::{
-    path::PathBuf,
     sync::{Arc, Mutex},
     thread::spawn,
 };
@@ -7,9 +6,8 @@ use std::{
 use config::{Config, ConfigFile, EmuAction, EmuInput};
 use glium::glutin::{
     self,
-    event::{ElementState, Event, VirtualKeyCode, WindowEvent},
+    event::{ElementState, Event, WindowEvent},
 };
-use melon::nds::input::NdsKey;
 use replay::Replay;
 use window::{draw, get_draw_data};
 use winit::event::ModifiersState;
@@ -223,6 +221,18 @@ fn game(emu: Arc<Mutex<Emu>>) {
     loop {
         let emu_state = emu.lock().unwrap().state;
 
+        {
+            let mut lock = emu.lock().unwrap();
+            let replay_opt = lock.replay.as_mut();
+            if let Some(replay) = replay_opt {
+                if let ReplayState::Write = replay.1 {
+                    let file = replay.0.name.clone();
+                    std::fs::write(file, serde_yaml::to_string(&replay.0).unwrap()).unwrap();
+                    lock.replay = None;
+                }
+            }
+        }
+
         match emu_state {
             EmuState::Stop => break,
             EmuState::Run | EmuState::Step => {
@@ -249,13 +259,7 @@ fn game(emu: Arc<Mutex<Emu>>) {
                                 // can only really happen if you load a bad savestate)
                                 emu_inputs
                             }
-                            ReplayState::Write => {
-                                let file = replay.name.clone();
-                                std::fs::write(file, serde_yaml::to_string(&replay).unwrap())
-                                    .unwrap();
-                                lock.replay = None;
-                                emu_inputs
-                            }
+                            ReplayState::Write => emu_inputs,
                         },
                     }
                 };
@@ -288,7 +292,15 @@ fn game(emu: Arc<Mutex<Emu>>) {
 
         savestate_read_request
             .map(localize_path)
-            .map(|read_path| ds.read_savestate(read_path));
+            .map(|read_path| ds.read_savestate(read_path))
+            .map(|_| {
+                emu.lock()
+                    .map(|mut mutex| {
+                        ds.update_framebuffers(&mut mutex.top_frame, false);
+                        ds.update_framebuffers(&mut mutex.bottom_frame, true);
+                    })
+                    .unwrap();
+            });
         savestate_write_request
             .map(localize_path)
             .map(|write_path| ds.write_savestate(write_path));
