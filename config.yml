@@ -16,6 +16,10 @@ key_map:
       alt: false
       logo: false
   action: !Save save.bin
+- input:
+    key_code: R
+    modifiers: null
+  action: QuitRecording
 # savestates
 - input:
     key_code: Key1

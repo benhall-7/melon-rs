@@ -44,6 +44,7 @@ pub enum EmuAction {
     Save(String),
     ReadSavestate(String),
     WriteSavestate(String),
+    QuitRecording,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]

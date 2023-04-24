@@ -10,6 +10,7 @@ use glium::glutin::{
     event::{ElementState, Event, VirtualKeyCode, WindowEvent},
 };
 use melon::nds::input::NdsKey;
+use replay::Replay;
 use window::{draw, get_draw_data};
 use winit::event::ModifiersState;
 
@@ -18,6 +19,7 @@ use crate::melon::{nds::input::NdsKeyMask, save, sys::glue::localize_path};
 pub mod config;
 pub mod events;
 pub mod melon;
+pub mod replay;
 pub mod window;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -26,6 +28,13 @@ pub enum EmuState {
     Pause,
     Stop,
     Step,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum ReplayState {
+    Recording,
+    Playing,
+    Write,
 }
 
 #[derive(Debug)]
@@ -37,6 +46,7 @@ pub struct Emu {
     pub state: EmuState,
     pub savestate_write_request: Option<String>,
     pub savestate_read_request: Option<String>,
+    pub replay: Option<(Replay, ReplayState)>,
 }
 
 impl Emu {
@@ -49,6 +59,10 @@ impl Emu {
             state: EmuState::Run,
             savestate_read_request: None,
             savestate_write_request: None,
+            replay: Some((
+                serde_yaml::from_str(&std::fs::read_to_string("replay.yml").unwrap()).unwrap(),
+                ReplayState::Playing,
+            )),
         }
     }
 }
@@ -112,6 +126,7 @@ fn main() {
                         return;
                     }
                     let modifiers = emu.lock().unwrap().key_modifiers;
+
                     let emu_key = match config.key_map.get(&EmuInput {
                         key_code: input.virtual_keycode.unwrap(),
                         modifiers,
@@ -169,6 +184,16 @@ fn main() {
                             }
                             emu.lock().unwrap().savestate_write_request = Some(path);
                         }
+                        EmuAction::QuitRecording => {
+                            if let ElementState::Released = state {
+                                return;
+                            }
+                            emu.lock()
+                                .unwrap()
+                                .replay
+                                .as_mut()
+                                .map(|state| state.1 = ReplayState::Write);
+                        }
                     }
                 }
                 _ => {}
@@ -201,7 +226,40 @@ fn game(emu: Arc<Mutex<Emu>>) {
         match emu_state {
             EmuState::Stop => break,
             EmuState::Run | EmuState::Step => {
-                ds.set_key_mask(emu.lock().unwrap().nds_input);
+                let nds_key = {
+                    let mut lock = emu.lock().unwrap();
+                    let emu_inputs = lock.nds_input;
+                    match lock.replay.as_mut() {
+                        None => emu.lock().unwrap().nds_input,
+                        Some((replay, replay_state)) => match *replay_state {
+                            ReplayState::Playing => {
+                                let current_frame = ds.current_frame() as usize;
+                                if current_frame < replay.inputs.len() {
+                                    NdsKeyMask::from_bits_retain(replay.inputs[current_frame])
+                                } else {
+                                    emu_inputs
+                                }
+                            }
+                            ReplayState::Recording => {
+                                let current_frame = ds.current_frame() as usize;
+                                if current_frame <= replay.inputs.len() {
+                                    replay.inputs.splice(current_frame.., [emu_inputs.bits()]);
+                                }
+                                // TODO: else block. A frame is skipped in recording (which
+                                // can only really happen if you load a bad savestate)
+                                emu_inputs
+                            }
+                            ReplayState::Write => {
+                                let file = replay.name.clone();
+                                std::fs::write(file, serde_yaml::to_string(&replay).unwrap())
+                                    .unwrap();
+                                lock.replay = None;
+                                emu_inputs
+                            }
+                        },
+                    }
+                };
+                ds.set_key_mask(nds_key);
                 ds.run_frame();
 
                 emu.lock()

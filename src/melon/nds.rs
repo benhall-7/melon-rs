@@ -116,6 +116,10 @@ impl NDS {
         sys::platform::glue::WriteSavestate(file)
     }
 
+    pub fn current_frame(&self) -> u32 {
+        sys::platform::glue::CurrentFrame()
+    }
+
     fn init_renderer(&mut self) {
         sys::gpu::InitRenderer(0);
     }

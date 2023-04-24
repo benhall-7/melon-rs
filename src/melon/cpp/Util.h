@@ -15,4 +15,6 @@ namespace Util
 
     bool ReadSavestate(rust::String filename);
     bool WriteSavestate(rust::String filename);
+
+    u32 CurrentFrame();
 }

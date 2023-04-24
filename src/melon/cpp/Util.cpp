@@ -55,4 +55,9 @@ namespace Util
         Savestate state(std::string(filename), true);
         return NDS::DoSavestate(&state);
     }
+
+    u32 CurrentFrame()
+    {
+        return NDS::NumFrames;
+    }
 }

@@ -228,6 +228,8 @@ pub mod platform {
 
             pub fn ReadSavestate(filename: String) -> bool;
             pub fn WriteSavestate(filename: String) -> bool;
+
+            pub fn CurrentFrame() -> u32;
         }
 
         #[repr(u32)]
