@@ -12,7 +12,7 @@ pub const DLDIFOLDER_SYNC: bool = false;
 pub const DSI_SDENABLE: bool = false;
 pub const DSI_SDREAD_ONLY: bool = false;
 pub const DSI_SDFOLDER_SYNC: bool = false;
-pub const FIRMWARE_OVERRIDE_SETTINGS: bool = false;
+pub const FIRMWARE_OVERRIDE_SETTINGS: bool = true;
 
 pub const DLDISIZE: i32 = 0;
 pub const DSI_SDSIZE: i32 = 0;
@@ -45,6 +45,7 @@ pub enum EmuAction {
     ReadSavestate(String),
     WriteSavestate(String),
     QuitRecording,
+    WriteMainRAM(String),
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]

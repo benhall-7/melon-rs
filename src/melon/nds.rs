@@ -23,7 +23,7 @@ impl NDS {
         if res {
             let mut nds = NDS(());
             nds.set_console_type(ConsoleType::DS);
-            
+
             nds.init_renderer();
             nds.set_render_settings();
             nds.reset();
@@ -118,6 +118,24 @@ impl NDS {
 
     pub fn current_frame(&self) -> u32 {
         sys::platform::glue::CurrentFrame()
+    }
+
+    pub fn main_ram(&self) -> &[u8] {
+        unsafe {
+            std::slice::from_raw_parts(
+                sys::platform::glue::MainRAM(),
+                sys::platform::glue::MainRAMMaxSize() as usize,
+            )
+        }
+    }
+
+    pub fn main_ram_mut(&mut self) -> &mut [u8] {
+        unsafe {
+            std::slice::from_raw_parts_mut(
+                sys::platform::glue::MainRAM(),
+                sys::platform::glue::MainRAMMaxSize() as usize,
+            )
+        }
     }
 
     fn init_renderer(&mut self) {

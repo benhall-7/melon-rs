@@ -17,4 +17,7 @@ namespace Util
     bool WriteSavestate(rust::String filename);
 
     u32 CurrentFrame();
+
+    u8* MainRAM();
+    u32 MainRAMMaxSize();
 }

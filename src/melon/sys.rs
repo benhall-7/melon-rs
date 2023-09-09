@@ -230,6 +230,9 @@ pub mod platform {
             pub fn WriteSavestate(filename: String) -> bool;
 
             pub fn CurrentFrame() -> u32;
+
+            pub fn MainRAM() -> *mut u8;
+            pub fn MainRAMMaxSize() -> u32;
         }
 
         #[repr(u32)]
@@ -274,7 +277,8 @@ pub mod platform {
     }
 
     fn instance_id() -> i32 {
-        std::process::id() as i32
+        // std::process::id() as i32
+        0
     }
 
     fn instance_file_suffix() -> String {
@@ -430,6 +434,7 @@ pub mod platform {
             let available = (*sema).capacity.get_mut().unwrap();
             if *available > 0 {
                 *available -= 1;
+                break;
             }
         }
     }
@@ -491,7 +496,7 @@ pub mod platform {
 
     fn lan_init() -> bool {
         // TODO: provide an event subscription
-        true
+        false
     }
 
     unsafe fn lan_send_packet(data: *mut u8, len: i32) -> i32 {

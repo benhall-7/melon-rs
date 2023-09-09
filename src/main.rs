@@ -45,6 +45,7 @@ pub struct Emu {
     pub savestate_write_request: Option<String>,
     pub savestate_read_request: Option<String>,
     pub replay: Option<(Replay, ReplayState)>,
+    pub ram_write_request: Option<String>,
 }
 
 impl Emu {
@@ -54,13 +55,14 @@ impl Emu {
             bottom_frame: [0; 256 * 192 * 4],
             nds_input: NdsKeyMask::empty(),
             key_modifiers: ModifiersState::empty(),
-            state: EmuState::Run,
+            state: EmuState::Pause,
             savestate_read_request: None,
             savestate_write_request: None,
             replay: Some((
                 serde_yaml::from_str(&std::fs::read_to_string("replay.yml").unwrap()).unwrap(),
                 ReplayState::Playing,
             )),
+            ram_write_request: None,
         }
     }
 }
@@ -186,11 +188,15 @@ fn main() {
                             if let ElementState::Released = state {
                                 return;
                             }
-                            emu.lock()
-                                .unwrap()
-                                .replay
-                                .as_mut()
-                                .map(|state| state.1 = ReplayState::Write);
+                            if let Some(state) = emu.lock().unwrap().replay.as_mut() {
+                                state.1 = ReplayState::Write
+                            }
+                        }
+                        EmuAction::WriteMainRAM(path) => {
+                            if let ElementState::Released = state {
+                                return;
+                            }
+                            emu.lock().unwrap().ram_write_request = Some(path);
                         }
                     }
                 }
@@ -219,6 +225,7 @@ fn game(emu: Arc<Mutex<Emu>>) {
 
     let mut fps = fps_clock::FpsClock::new(60);
     loop {
+        let mut force_pause = false;
         let emu_state = emu.lock().unwrap().state;
 
         {
@@ -245,6 +252,9 @@ fn game(emu: Arc<Mutex<Emu>>) {
                             ReplayState::Playing => {
                                 let current_frame = ds.current_frame() as usize;
                                 if current_frame < replay.inputs.len() {
+                                    if current_frame == replay.inputs.len() - 1 {
+                                        force_pause = true;
+                                    }
                                     NdsKeyMask::from_bits_retain(replay.inputs[current_frame])
                                 } else {
                                     emu_inputs
@@ -266,6 +276,8 @@ fn game(emu: Arc<Mutex<Emu>>) {
                 ds.set_key_mask(nds_key);
                 ds.run_frame();
 
+                println!("Frame {}", ds.current_frame());
+
                 emu.lock()
                     .map(|mut mutex| {
                         ds.update_framebuffers(&mut mutex.top_frame, false);
@@ -273,37 +285,44 @@ fn game(emu: Arc<Mutex<Emu>>) {
                     })
                     .unwrap();
 
-                if let EmuState::Step = emu_state {
+                if force_pause {
+                    emu.lock().unwrap().state = EmuState::Pause;
+                } else if let EmuState::Step = emu_state {
                     emu.lock().unwrap().state = EmuState::Pause;
                 }
             }
             EmuState::Pause => {}
         }
 
-        let (savestate_read_request, savestate_write_request) = emu
+        let (savestate_read_request, savestate_write_request, ram_write_request) = emu
             .lock()
             .map(|mut lock| {
                 (
                     lock.savestate_read_request.take(),
                     lock.savestate_write_request.take(),
+                    lock.ram_write_request.take(),
                 )
             })
             .unwrap();
 
-        savestate_read_request
-            .map(localize_path)
-            .map(|read_path| ds.read_savestate(read_path))
-            .map(|_| {
-                emu.lock()
-                    .map(|mut mutex| {
-                        ds.update_framebuffers(&mut mutex.top_frame, false);
-                        ds.update_framebuffers(&mut mutex.bottom_frame, true);
-                    })
-                    .unwrap();
-            });
-        savestate_write_request
-            .map(localize_path)
-            .map(|write_path| ds.write_savestate(write_path));
+        if let Some(read_path) = savestate_read_request {
+            ds.read_savestate(localize_path(read_path));
+            // it seems this doesn't work, probably because it needs to run
+            // a frame to get the right framebuffer data anyway
+            // let mut mutex = emu.lock().unwrap();
+            // ds.update_framebuffers(&mut mutex.top_frame, false);
+            // ds.update_framebuffers(&mut mutex.bottom_frame, true);
+        }
+
+        if let Some(write_path) = savestate_write_request {
+            ds.write_savestate(localize_path(write_path));
+        }
+
+        if let Some(write_path) = ram_write_request {
+            let ram = ds.main_ram();
+            std::fs::write(write_path, ram).unwrap();
+            println!("main RAM written to ram.bin");
+        }
 
         fps.tick();
     }

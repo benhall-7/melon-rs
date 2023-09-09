@@ -20,6 +20,14 @@ key_map:
     key_code: R
     modifiers: null
   action: QuitRecording
+- input:
+    key_code: D
+    modifiers:
+      shift: true
+      ctrl: false
+      alt: false
+      logo: false
+  action: !WriteMainRAM ram.bin
 # savestates
 - input:
     key_code: Key1

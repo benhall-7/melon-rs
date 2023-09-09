@@ -60,4 +60,14 @@ namespace Util
     {
         return NDS::NumFrames;
     }
+
+    u8* MainRAM()
+    {
+        return NDS::MainRAM;
+    }
+
+    u32 MainRAMMaxSize()
+    {
+        return NDS::MainRAMMaxSize;
+    }
 }
