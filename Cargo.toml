@@ -13,6 +13,7 @@ bitflags = "2.0.2"
 fps_clock = "2.0.0"
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9.21"
+chrono = { version = "0.4.30", features = ["serde"] }
 
 [build-dependencies]
 cmake = "0.1"

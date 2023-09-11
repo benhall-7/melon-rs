@@ -1,8 +1,10 @@
 use std::{
+    ops::{Add, Mul},
     sync::{Arc, Mutex},
     thread::spawn,
 };
 
+use chrono::{Duration, Utc};
 use config::{Config, ConfigFile, EmuAction, EmuInput};
 use glium::glutin::{
     self,
@@ -58,10 +60,7 @@ impl Emu {
             state: EmuState::Pause,
             savestate_read_request: None,
             savestate_write_request: None,
-            replay: Some((
-                serde_yaml::from_str(&std::fs::read_to_string("replay.yml").unwrap()).unwrap(),
-                ReplayState::Playing,
-            )),
+            replay: None,
             ram_write_request: None,
         }
     }
@@ -76,14 +75,15 @@ impl Default for Emu {
 fn main() {
     let config: Config = std::fs::read_to_string("config.yml")
         .ok()
-        .and_then(|yml| serde_yaml::from_str::<ConfigFile>(&yml).ok())
+        .map(|yml| serde_yaml::from_str::<ConfigFile>(&yml).unwrap())
         .map(Into::into)
         .unwrap_or_default();
 
     let emu = Arc::new(Mutex::new(Emu::new()));
 
     let game_emu = emu.clone();
-    let mut game_thread = Some(spawn(|| game(game_emu)));
+    let game_config = config.clone();
+    let mut game_thread = Some(spawn(|| game(game_emu, game_config)));
 
     let events_loop = glutin::event_loop::EventLoop::new();
     let display = glium::Display::new(
@@ -206,7 +206,7 @@ fn main() {
     });
 }
 
-fn game(emu: Arc<Mutex<Emu>>) {
+fn game(emu: Arc<Mutex<Emu>>, config: Config) {
     let mut lock = melon::nds::INSTANCE.lock().unwrap();
     let mut ds = lock.take().unwrap();
 
@@ -220,6 +220,8 @@ fn game(emu: Arc<Mutex<Emu>>) {
     if ds.needs_direct_boot() {
         ds.setup_direct_boot(String::from("Ultra.nds"));
     }
+
+    let emu_timestamp = config.timestamp.unwrap_or_else(Utc::now);
 
     ds.start();
 
@@ -247,7 +249,7 @@ fn game(emu: Arc<Mutex<Emu>>) {
                     let mut lock = emu.lock().unwrap();
                     let emu_inputs = lock.nds_input;
                     match lock.replay.as_mut() {
-                        None => emu.lock().unwrap().nds_input,
+                        None => emu_inputs,
                         Some((replay, replay_state)) => match *replay_state {
                             ReplayState::Playing => {
                                 let current_frame = ds.current_frame() as usize;
@@ -273,6 +275,12 @@ fn game(emu: Arc<Mutex<Emu>>) {
                         },
                     }
                 };
+
+                let before_frame = ds.current_frame();
+                let new_timestamp =
+                    emu_timestamp.add(Duration::nanoseconds(16_666_667).mul(before_frame as i32));
+                // wish I had a way to set time here ahhh
+
                 ds.set_key_mask(nds_key);
                 ds.run_frame();
 

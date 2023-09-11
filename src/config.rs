@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use chrono::{DateTime, Utc};
 use glium::glutin::event::{ModifiersState, VirtualKeyCode};
 use serde::{Deserialize, Serialize};
 
@@ -56,12 +57,14 @@ pub struct EmuInput {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Config {
+    pub timestamp: Option<DateTime<Utc>>,
     pub key_map: HashMap<EmuInput, EmuAction>,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Config {
+            timestamp: None,
             key_map: vec![
                 (VirtualKeyCode::K, EmuAction::NdsKey(NdsKey::A)),
                 (VirtualKeyCode::M, EmuAction::NdsKey(NdsKey::B)),
@@ -117,6 +120,7 @@ pub struct ConfigKeyMapEntry {
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ConfigFile {
+    pub timestamp: Option<DateTime<Utc>>,
     pub key_map: Vec<ConfigKeyMapEntry>,
 }
 
@@ -132,6 +136,7 @@ impl From<EmuInputEntry> for EmuInput {
 impl From<ConfigFile> for Config {
     fn from(value: ConfigFile) -> Self {
         Config {
+            timestamp: value.timestamp,
             key_map: value
                 .key_map
                 .into_iter()
@@ -144,6 +149,7 @@ impl From<ConfigFile> for Config {
 impl From<Config> for ConfigFile {
     fn from(value: Config) -> Self {
         ConfigFile {
+            timestamp: value.timestamp,
             key_map: value
                 .key_map
                 .into_iter()

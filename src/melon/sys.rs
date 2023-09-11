@@ -29,6 +29,20 @@ pub mod glue {
     }
 }
 
+pub mod replacements {
+    #[cxx::bridge(namespace = "Replacements")]
+    pub mod externs {
+        extern "Rust" {
+            #[cxx_name = "EmulatedTime"]
+            unsafe fn emulated_time(seconds: *mut i32) -> i32;
+        }
+    }
+
+    fn emulated_time(seconds: *const i32) -> i32 {
+        0
+    }
+}
+
 #[cxx::bridge(namespace = "NDS")]
 pub mod nds {
     unsafe extern "C++" {
