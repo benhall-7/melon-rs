@@ -118,9 +118,10 @@ impl NDS {
 
         let timestamp_str = std::fs::read_to_string(&timestamp_path)
             .unwrap_or_else(|_| panic!("Couldn't read timestamp file: {}", timestamp_path));
-        let timestamp: DateTime<Utc> = DateTime::parse_from_rfc2822(&timestamp_str)
-            .expect("Couldn't parse timestamp file: {}")
-            .into();
+        let timestamp: DateTime<Utc> =
+            DateTime::parse_from_str(&timestamp_str, "%Y-%m-%dT%H:%M:%S%.f%z")
+                .expect("Couldn't parse timestamp file: {}")
+                .into();
 
         (sys::platform::glue::ReadSavestate(localized), timestamp)
     }
@@ -132,7 +133,7 @@ impl NDS {
         raw.push(".timestamp");
         let timestamp_path = PathBuf::from(raw).to_string_lossy().into_owned();
 
-        let timestamp_str = timestamp.to_rfc2822();
+        let timestamp_str = timestamp.format("%Y-%m-%dT%H:%M:%S%.f%z").to_string();
         std::fs::write(&timestamp_path, timestamp_str)
             .unwrap_or_else(|_| panic!("Couldn't write timestamp file: {}", timestamp_path));
 
