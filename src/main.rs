@@ -1,26 +1,26 @@
-use std::{
-    ops::{Add, Mul},
-    sync::{Arc, Mutex},
-    thread::spawn,
-};
+use std::sync::{Arc, Mutex};
+use std::thread::spawn;
 
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use config::{Config, ConfigFile, EmuAction, EmuInput};
 use glium::glutin::{
     self,
     event::{ElementState, Event, WindowEvent},
 };
+use once_cell::sync::Lazy;
 use replay::Replay;
 use window::{draw, get_draw_data};
 use winit::event::ModifiersState;
 
-use crate::melon::{nds::input::NdsKeyMask, save, sys::glue::localize_path};
+use crate::melon::{nds::input::NdsKeyMask, save};
 
 pub mod config;
 pub mod events;
 pub mod melon;
 pub mod replay;
 pub mod window;
+
+pub static GAME_TIME: Lazy<Arc<Mutex<DateTime<Utc>>>> = Lazy::new(Default::default);
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum EmuState {
@@ -44,6 +44,7 @@ pub struct Emu {
     pub nds_input: NdsKeyMask,
     pub key_modifiers: ModifiersState,
     pub state: EmuState,
+    pub time: DateTime<Utc>,
     pub savestate_write_request: Option<String>,
     pub savestate_read_request: Option<String>,
     pub replay: Option<(Replay, ReplayState)>,
@@ -51,24 +52,19 @@ pub struct Emu {
 }
 
 impl Emu {
-    pub fn new() -> Self {
+    pub fn new(time: DateTime<Utc>) -> Self {
         Emu {
             top_frame: [0; 256 * 192 * 4],
             bottom_frame: [0; 256 * 192 * 4],
             nds_input: NdsKeyMask::empty(),
             key_modifiers: ModifiersState::empty(),
+            time,
             state: EmuState::Pause,
             savestate_read_request: None,
             savestate_write_request: None,
             replay: None,
             ram_write_request: None,
         }
-    }
-}
-
-impl Default for Emu {
-    fn default() -> Self {
-        Emu::new()
     }
 }
 
@@ -79,7 +75,10 @@ fn main() {
         .map(Into::into)
         .unwrap_or_default();
 
-    let emu = Arc::new(Mutex::new(Emu::new()));
+    let start_time = config.timestamp.unwrap_or_else(Utc::now);
+    println!("start_time = {}", start_time);
+
+    let emu = Arc::new(Mutex::new(Emu::new(start_time)));
 
     let game_emu = emu.clone();
     let game_config = config.clone();
@@ -206,7 +205,7 @@ fn main() {
     });
 }
 
-fn game(emu: Arc<Mutex<Emu>>, config: Config) {
+fn game(emu: Arc<Mutex<Emu>>, _config: Config) {
     let mut lock = melon::nds::INSTANCE.lock().unwrap();
     let mut ds = lock.take().unwrap();
 
@@ -220,8 +219,6 @@ fn game(emu: Arc<Mutex<Emu>>, config: Config) {
     if ds.needs_direct_boot() {
         ds.setup_direct_boot(String::from("Ultra.nds"));
     }
-
-    let emu_timestamp = config.timestamp.unwrap_or_else(Utc::now);
 
     ds.start();
 
@@ -276,15 +273,18 @@ fn game(emu: Arc<Mutex<Emu>>, config: Config) {
                     }
                 };
 
-                let before_frame = ds.current_frame();
-                let new_timestamp =
-                    emu_timestamp.add(Duration::nanoseconds(16_666_667).mul(before_frame as i32));
-                // wish I had a way to set time here ahhh
+                // updates static variable for emulator function impl
+                // what's a better strategy? maybe the subscriptions?
+                *(GAME_TIME.lock().unwrap()) = emu.lock().unwrap().time;
 
                 ds.set_key_mask(nds_key);
                 ds.run_frame();
 
                 println!("Frame {}", ds.current_frame());
+                println!("Time is now {}", GAME_TIME.lock().unwrap());
+
+                // updates emu time
+                emu.lock().unwrap().time += Duration::nanoseconds(16_666_667);
 
                 emu.lock()
                     .map(|mut mutex| {
@@ -314,7 +314,8 @@ fn game(emu: Arc<Mutex<Emu>>, config: Config) {
             .unwrap();
 
         if let Some(read_path) = savestate_read_request {
-            ds.read_savestate(localize_path(read_path));
+            let (_, time) = ds.read_savestate(read_path);
+            emu.lock().unwrap().time = time;
             // it seems this doesn't work, probably because it needs to run
             // a frame to get the right framebuffer data anyway
             // let mut mutex = emu.lock().unwrap();
@@ -323,7 +324,8 @@ fn game(emu: Arc<Mutex<Emu>>, config: Config) {
         }
 
         if let Some(write_path) = savestate_write_request {
-            ds.write_savestate(localize_path(write_path));
+            let time = emu.lock().unwrap().time;
+            ds.write_savestate(write_path, time);
         }
 
         if let Some(write_path) = ram_write_request {

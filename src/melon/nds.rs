@@ -1,8 +1,9 @@
-use std::sync::Mutex;
+use std::{ffi::OsString, path::PathBuf, sync::Mutex};
 
+use chrono::{DateTime, Utc};
 use once_cell::sync::Lazy;
 
-use super::sys;
+use super::sys::{self, glue::localize_pathbuf};
 
 pub mod input;
 
@@ -108,12 +109,34 @@ impl NDS {
         );
     }
 
-    pub fn read_savestate(&mut self, file: String) -> bool {
-        sys::platform::glue::ReadSavestate(file)
+    pub fn read_savestate(&mut self, file: String) -> (bool, DateTime<Utc>) {
+        let localized = localize_pathbuf(file).to_string_lossy().into_owned();
+
+        let mut raw: OsString = localized.clone().into();
+        raw.push(".timestamp");
+        let timestamp_path = PathBuf::from(raw).to_string_lossy().into_owned();
+
+        let timestamp_str = std::fs::read_to_string(&timestamp_path)
+            .unwrap_or_else(|_| panic!("Couldn't read timestamp file: {}", timestamp_path));
+        let timestamp: DateTime<Utc> = DateTime::parse_from_rfc2822(&timestamp_str)
+            .expect("Couldn't parse timestamp file: {}")
+            .into();
+
+        (sys::platform::glue::ReadSavestate(localized), timestamp)
     }
 
-    pub fn write_savestate(&mut self, file: String) -> bool {
-        sys::platform::glue::WriteSavestate(file)
+    pub fn write_savestate(&mut self, file: String, timestamp: DateTime<Utc>) -> bool {
+        let localized = localize_pathbuf(file).to_string_lossy().into_owned();
+
+        let mut raw: OsString = localized.clone().into();
+        raw.push(".timestamp");
+        let timestamp_path = PathBuf::from(raw).to_string_lossy().into_owned();
+
+        let timestamp_str = timestamp.to_rfc2822();
+        std::fs::write(&timestamp_path, timestamp_str)
+            .unwrap_or_else(|_| panic!("Couldn't write timestamp file: {}", timestamp_path));
+
+        sys::platform::glue::WriteSavestate(localized)
     }
 
     pub fn current_frame(&self) -> u32 {
