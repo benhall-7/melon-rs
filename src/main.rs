@@ -13,6 +13,7 @@ use window::{draw, get_draw_data};
 use winit::event::ModifiersState;
 
 use crate::melon::{nds::input::NdsKeyMask, save};
+use crate::replay::ReplaySource;
 
 pub mod config;
 pub mod events;
@@ -62,7 +63,24 @@ impl Emu {
             state: EmuState::Pause,
             savestate_read_request: None,
             savestate_write_request: None,
-            replay: None,
+            replay: Some((
+                // Replay {
+                //     name: "MyTAS".into(),
+                //     author: "Ben Hall".into(),
+                //     source: replay::ReplaySource::SaveFile {
+                //         path: "save.bin".into(),
+                //         timestamp: DateTime::parse_from_str(
+                //             "2023-09-13T12:00:00+0000",
+                //             "%Y-%m-%dT%H:%M:%S%.f%z",
+                //         )
+                //         .unwrap()
+                //         .into(),
+                //     },
+                //     inputs: vec![],
+                // },
+                serde_yaml::from_str(&std::fs::read_to_string("MyTAS").unwrap()).unwrap(),
+                ReplayState::Playing,
+            )),
             ram_write_request: None,
         }
     }
@@ -206,13 +224,37 @@ fn main() {
 }
 
 fn game(emu: Arc<Mutex<Emu>>, _config: Config) {
-    let mut lock = melon::nds::INSTANCE.lock().unwrap();
-    let mut ds = lock.take().unwrap();
+    let mut ds_lock = melon::nds::INSTANCE.lock().unwrap();
+    let mut ds = ds_lock.take().unwrap();
 
-    ds.load_cart(
-        &std::fs::read("/Users/benjamin/Desktop/ds/Ultra.nds").unwrap(),
-        std::fs::read("save.bin").ok().as_deref(),
-    );
+    let nds_cart = std::fs::read("/Users/benjamin/Desktop/ds/Ultra.nds").unwrap();
+
+    {
+        let mut emu = emu.lock().unwrap();
+        let replay_opt = emu.replay.as_ref();
+
+        let mut start_time = None;
+        let mut save_data = None;
+
+        if let Some((replay, _)) = replay_opt {
+            match &replay.source {
+                ReplaySource::None { timestamp } => start_time = Some(*timestamp),
+                ReplaySource::SaveFile { path, timestamp } => {
+                    start_time = Some(*timestamp);
+                    save_data = Some(std::fs::read(path).unwrap());
+                }
+                _ => todo!(),
+            }
+        } else {
+            save_data = std::fs::read("save.bin").ok();
+        }
+
+        ds.load_cart(&nds_cart, save_data.as_deref());
+
+        if let Some(timestamp) = start_time {
+            emu.time = timestamp;
+        }
+    }
 
     println!("Needs direct boot? {:?}", ds.needs_direct_boot());
 

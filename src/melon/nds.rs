@@ -10,6 +10,8 @@ pub mod input;
 pub static INSTANCE: Lazy<Mutex<Option<NDS>>> =
     Lazy::new(|| Mutex::new(Some(NDS::new().expect("Couldn't initialize NDS"))));
 
+/// The DS interface itself. Because melonDS relies heavily on static variables
+/// for state, this must be unique. Therefore, the constructor is private
 pub struct NDS(());
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

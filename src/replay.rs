@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
-use serde::{Serialize, Deserialize};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 /// Replays could realistically be played back in 3 ways:
 /// from the emulator startup using a consistent save file;
@@ -11,9 +12,17 @@ use serde::{Serialize, Deserialize};
 /// while having no consistent source is likely to cause desyncs
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum ReplaySource {
-    SaveFile { path: PathBuf },
-    Savestate { path: PathBuf, start_frame: u32 },
-    None,
+    SaveFile {
+        path: PathBuf,
+        timestamp: DateTime<Utc>,
+    },
+    Savestate {
+        path: PathBuf,
+        start_frame: u32,
+    },
+    None {
+        timestamp: DateTime<Utc>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
