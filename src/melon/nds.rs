@@ -1,4 +1,5 @@
-use std::{ffi::OsString, path::PathBuf, sync::Mutex};
+use std::{ffi::OsString, path::PathBuf};
+use tokio::sync::Mutex;
 
 use chrono::{DateTime, Utc};
 use once_cell::sync::Lazy;

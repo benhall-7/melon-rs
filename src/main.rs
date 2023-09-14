@@ -9,6 +9,7 @@ use glium::glutin::{
 };
 use once_cell::sync::Lazy;
 use replay::Replay;
+use tokio::time as ttime;
 use window::{draw, get_draw_data};
 use winit::event::ModifiersState;
 
@@ -63,30 +64,32 @@ impl Emu {
             state: EmuState::Pause,
             savestate_read_request: None,
             savestate_write_request: None,
-            replay: Some((
-                // Replay {
-                //     name: "MyTAS".into(),
-                //     author: "Ben Hall".into(),
-                //     source: replay::ReplaySource::SaveFile {
-                //         path: "save.bin".into(),
-                //         timestamp: DateTime::parse_from_str(
-                //             "2023-09-13T12:00:00+0000",
-                //             "%Y-%m-%dT%H:%M:%S%.f%z",
-                //         )
-                //         .unwrap()
-                //         .into(),
-                //     },
-                //     inputs: vec![],
-                // },
-                serde_yaml::from_str(&std::fs::read_to_string("MyTAS").unwrap()).unwrap(),
-                ReplayState::Playing,
-            )),
+            replay: None,
+            // replay: Some((
+            //     // Replay {
+            //     //     name: "MyTAS".into(),
+            //     //     author: "Ben Hall".into(),
+            //     //     source: replay::ReplaySource::SaveFile {
+            //     //         path: "save.bin".into(),
+            //     //         timestamp: DateTime::parse_from_str(
+            //     //             "2023-09-13T12:00:00+0000",
+            //     //             "%Y-%m-%dT%H:%M:%S%.f%z",
+            //     //         )
+            //     //         .unwrap()
+            //     //         .into(),
+            //     //     },
+            //     //     inputs: vec![],
+            //     // },
+            //     serde_yaml::from_str(&std::fs::read_to_string("MyTAS").unwrap()).unwrap(),
+            //     ReplayState::Playing,
+            // )),
             ram_write_request: None,
         }
     }
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let config: Config = std::fs::read_to_string("config.yml")
         .ok()
         .map(|yml| serde_yaml::from_str::<ConfigFile>(&yml).unwrap())
@@ -100,7 +103,9 @@ fn main() {
 
     let game_emu = emu.clone();
     let game_config = config.clone();
-    let mut game_thread = Some(spawn(|| game(game_emu, game_config)));
+    let mut game_thread = Some(tokio::spawn(async move {
+        game(game_emu, game_config).await;
+    }));
 
     let events_loop = glutin::event_loop::EventLoop::new();
     let display = glium::Display::new(
@@ -133,7 +138,7 @@ fn main() {
                     *control_flow = glutin::event_loop::ControlFlow::Exit;
 
                     emu.lock().unwrap().state = EmuState::Stop;
-                    game_thread.take().map(|thread| thread.join());
+                    game_thread.take().map(|thread| async { thread.await });
                 }
                 WindowEvent::ModifiersChanged(modifiers) => {
                     emu.lock().unwrap().key_modifiers = modifiers;
@@ -223,8 +228,8 @@ fn main() {
     });
 }
 
-fn game(emu: Arc<Mutex<Emu>>, _config: Config) {
-    let mut ds_lock = melon::nds::INSTANCE.lock().unwrap();
+async fn game(emu: Arc<Mutex<Emu>>, _config: Config) {
+    let mut ds_lock = melon::nds::INSTANCE.lock().await;
     let mut ds = ds_lock.take().unwrap();
 
     let nds_cart = std::fs::read("/Users/benjamin/Desktop/ds/Ultra.nds").unwrap();
@@ -264,8 +269,16 @@ fn game(emu: Arc<Mutex<Emu>>, _config: Config) {
 
     ds.start();
 
-    let mut fps = fps_clock::FpsClock::new(60);
+    let mut timer = ttime::interval_at(
+        ttime::Instant::now(),
+        ttime::Duration::from_nanos(16_666_667),
+    );
+    timer.set_missed_tick_behavior(ttime::MissedTickBehavior::Skip);
+    // let spin_sleeper = spin_sleep::SpinSleeper::new(4_000_000)
+    // .with_spin_strategy(spin_sleep::SpinStrategy::YieldThread);
     loop {
+        timer.tick().await;
+
         let mut force_pause = false;
         let emu_state = emu.lock().unwrap().state;
 
@@ -376,7 +389,11 @@ fn game(emu: Arc<Mutex<Emu>>, _config: Config) {
             println!("main RAM written to ram.bin");
         }
 
-        fps.tick();
+        // let elapsed = before_instant.elapsed();
+
+        // if elapsed.as_nanos() < 16_666_667 {
+        // spin_sleeper.sleep_ns(16_666_667 - elapsed.as_nanos() as u64);
+        // }
     }
 
     ds.stop();
