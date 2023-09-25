@@ -2,7 +2,7 @@
 #![allow(clippy::missing_safety_doc)]
 
 pub mod glue {
-    use std::path::PathBuf;
+    use crate::utils::localize_pathbuf;
 
     #[cxx::bridge(namespace = "Rust")]
     mod rust {
@@ -14,20 +14,6 @@ pub mod glue {
 
     pub fn localize_path(path: String) -> String {
         localize_pathbuf(path).to_string_lossy().into()
-    }
-
-    pub fn localize_pathbuf(path: String) -> PathBuf {
-        let pathbuf = PathBuf::from(path);
-        if pathbuf.is_absolute() {
-            pathbuf
-        } else {
-            std::env::current_exe()
-                .expect("Couldn't get target executable path")
-                .parent()
-                .expect("Failed to get path to current executable's parent folder")
-                .join("melon")
-                .join(pathbuf)
-        }
     }
 }
 

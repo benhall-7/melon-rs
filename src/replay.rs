@@ -3,6 +3,16 @@ use std::path::PathBuf;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub struct Replay {
+    pub name: PathBuf,
+    pub author: String,
+    pub source: ReplaySource,
+    // inputs are determined by a 32-bit bitfield and we can
+    // pull it straight from melonDS
+    pub inputs: Vec<u32>,
+}
+
 /// Replays could realistically be played back in 3 ways:
 /// from the emulator startup using a consistent save file;
 /// from a savestate at any particular frame;
@@ -26,11 +36,13 @@ pub enum ReplaySource {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub struct Replay {
+pub struct SavestateContext {
+    pub replay: Option<SavestateContextReplay>,
+    pub timestamp: DateTime<Utc>,
+}
+
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub struct SavestateContextReplay {
     pub name: PathBuf,
-    pub author: String,
-    pub source: ReplaySource,
-    // inputs are determined by a 32-bit bitfield and we can
-    // pull it straight from melonDS
     pub inputs: Vec<u32>,
 }

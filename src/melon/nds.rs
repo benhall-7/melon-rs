@@ -1,19 +1,17 @@
-use std::{ffi::OsString, path::PathBuf};
 use tokio::sync::Mutex;
 
-use chrono::{DateTime, Utc};
 use once_cell::sync::Lazy;
 
-use super::sys::{self, glue::localize_pathbuf};
+use super::sys;
 
 pub mod input;
 
-pub static INSTANCE: Lazy<Mutex<Option<NDS>>> =
-    Lazy::new(|| Mutex::new(Some(NDS::new().expect("Couldn't initialize NDS"))));
+pub static INSTANCE: Lazy<Mutex<Option<Nds>>> =
+    Lazy::new(|| Mutex::new(Some(Nds::new().expect("Couldn't initialize NDS"))));
 
 /// The DS interface itself. Because melonDS relies heavily on static variables
 /// for state, this must be unique. Therefore, the constructor is private
-pub struct NDS(());
+pub struct Nds(());
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConsoleType {
@@ -21,11 +19,11 @@ pub enum ConsoleType {
     DSi = 1,
 }
 
-impl NDS {
+impl Nds {
     fn new() -> Result<Self, ()> {
         let res = sys::nds::Init();
         if res {
-            let mut nds = NDS(());
+            let mut nds = Nds(());
             nds.set_console_type(ConsoleType::DS);
 
             nds.init_renderer();
@@ -112,35 +110,12 @@ impl NDS {
         );
     }
 
-    pub fn read_savestate(&mut self, file: String) -> (bool, DateTime<Utc>) {
-        let localized = localize_pathbuf(file).to_string_lossy().into_owned();
-
-        let mut raw: OsString = localized.clone().into();
-        raw.push(".timestamp");
-        let timestamp_path = PathBuf::from(raw).to_string_lossy().into_owned();
-
-        let timestamp_str = std::fs::read_to_string(&timestamp_path)
-            .unwrap_or_else(|_| panic!("Couldn't read timestamp file: {}", timestamp_path));
-        let timestamp: DateTime<Utc> =
-            DateTime::parse_from_str(&timestamp_str, "%Y-%m-%dT%H:%M:%S%.f%z")
-                .expect("Couldn't parse timestamp file: {}")
-                .into();
-
-        (sys::platform::glue::ReadSavestate(localized), timestamp)
+    pub fn read_savestate(&mut self, file: String) -> bool {
+        sys::platform::glue::ReadSavestate(file)
     }
 
-    pub fn write_savestate(&mut self, file: String, timestamp: DateTime<Utc>) -> bool {
-        let localized = localize_pathbuf(file).to_string_lossy().into_owned();
-
-        let mut raw: OsString = localized.clone().into();
-        raw.push(".timestamp");
-        let timestamp_path = PathBuf::from(raw).to_string_lossy().into_owned();
-
-        let timestamp_str = timestamp.format("%Y-%m-%dT%H:%M:%S%.f%z").to_string();
-        std::fs::write(&timestamp_path, timestamp_str)
-            .unwrap_or_else(|_| panic!("Couldn't write timestamp file: {}", timestamp_path));
-
-        sys::platform::glue::WriteSavestate(localized)
+    pub fn write_savestate(&mut self, file: String) -> bool {
+        sys::platform::glue::WriteSavestate(file)
     }
 
     pub fn current_frame(&self) -> u32 {
@@ -170,7 +145,7 @@ impl NDS {
     }
 }
 
-impl Drop for NDS {
+impl Drop for Nds {
     fn drop(&mut self) {
         sys::nds::DeInit()
     }

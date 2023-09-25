@@ -1,25 +1,35 @@
+use std::ffi::OsString;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread::spawn;
 
+use byteorder::{ReadBytesExt, LittleEndian};
 use chrono::{DateTime, Duration, Utc};
 use config::{Config, ConfigFile, EmuAction, EmuInput};
 use glium::glutin::{
     self,
     event::{ElementState, Event, WindowEvent},
 };
+use melon::kssu::addresses::MAIN_RAM_OFFSET;
+use melon::kssu::io::MemCursor;
+use melon::nds::Nds;
 use once_cell::sync::Lazy;
-use replay::Replay;
+use replay::{Replay, SavestateContext};
 use tokio::time as ttime;
+use utils::localize_pathbuf;
 use window::{draw, get_draw_data};
 use winit::event::ModifiersState;
 
+use crate::melon::kssu::addresses::ACTOR_COLLECTION;
+use crate::melon::kssu::{ActorCollection, Actor};
 use crate::melon::{nds::input::NdsKeyMask, save};
-use crate::replay::ReplaySource;
+use crate::replay::{ReplaySource, SavestateContextReplay};
 
 pub mod config;
 pub mod events;
 pub mod melon;
 pub mod replay;
+pub mod utils;
 pub mod window;
 
 pub static GAME_TIME: Lazy<Arc<Mutex<DateTime<Utc>>>> = Lazy::new(Default::default);
@@ -64,27 +74,83 @@ impl Emu {
             state: EmuState::Pause,
             savestate_read_request: None,
             savestate_write_request: None,
-            replay: None,
-            // replay: Some((
-            //     // Replay {
-            //     //     name: "MyTAS".into(),
-            //     //     author: "Ben Hall".into(),
-            //     //     source: replay::ReplaySource::SaveFile {
-            //     //         path: "save.bin".into(),
-            //     //         timestamp: DateTime::parse_from_str(
-            //     //             "2023-09-13T12:00:00+0000",
-            //     //             "%Y-%m-%dT%H:%M:%S%.f%z",
-            //     //         )
-            //     //         .unwrap()
-            //     //         .into(),
-            //     //     },
-            //     //     inputs: vec![],
-            //     // },
-            //     serde_yaml::from_str(&std::fs::read_to_string("MyTAS").unwrap()).unwrap(),
-            //     ReplayState::Playing,
-            // )),
+            // replay: None,
+            replay: Some((
+                // Replay {
+                //     name: "Race 1".into(),
+                //     author: "Ben Hall".into(),
+                //     source: replay::ReplaySource::SaveFile {
+                //         path: "save.bin".into(),
+                //         timestamp: DateTime::parse_from_str(
+                //             "2023-09-13T12:00:00+0000",
+                //             "%Y-%m-%dT%H:%M:%S%.f%z",
+                //         )
+                //         .unwrap()
+                //         .into(),
+                //     },
+                //     inputs: vec![],
+                // },
+                serde_yaml::from_str(&std::fs::read_to_string("Race").unwrap()).unwrap(),
+                ReplayState::Playing,
+            )),
             ram_write_request: None,
         }
+    }
+
+    // TODO: these may be pretty to run from inside the emu lock
+    fn read_savestate(&mut self, nds: &mut Nds, file: String) {
+        let localized = localize_pathbuf(file).to_string_lossy().into_owned();
+
+        let mut raw: OsString = localized.clone().into();
+        raw.push(".context");
+        let context_path = PathBuf::from(raw).to_string_lossy().into_owned();
+
+        let context_str = std::fs::read_to_string(&context_path).ok();
+        if context_str.is_none() {
+            println!("Couldn't read savestate: {}", context_path);
+            return;
+        }
+        let context: SavestateContext = serde_yaml::from_str(&context_str.unwrap()).unwrap();
+
+        match (&mut self.replay, context.replay) {
+            (Some(replay), Some(replay_context)) => {
+                if replay_context.name == replay.0.name {
+                    self.time = context.timestamp;
+                    replay.0.inputs = replay_context.inputs;
+                    assert!(nds.read_savestate(localized));
+                } else {
+                    println!("The savestate couldn't be loaded. The savestate belongs to a different replay")
+                }
+            }
+            (Some(_), None) => println!("The savestate couldn't be loaded. There is a replay running, but the savestate doesn't belong to one"),
+            (None, Some(_)) => println!("The savestate couldn't be loaded. There is no replay running, and the savestate belongs to a replay"),
+            (None, None) => {
+                self.time = context.timestamp;
+                assert!(nds.read_savestate(localized));
+            },
+        }
+    }
+
+    fn write_savestate(&mut self, nds: &mut Nds, file: String) {
+        let localized = localize_pathbuf(file).to_string_lossy().into_owned();
+
+        let mut raw: OsString = localized.clone().into();
+        raw.push(".context");
+        let context_path = PathBuf::from(raw).to_string_lossy().into_owned();
+
+        let context = SavestateContext {
+            timestamp: self.time,
+            replay: self.replay.as_ref().map(|replay| SavestateContextReplay {
+                name: replay.0.name.clone(),
+                inputs: replay.0.inputs.clone(),
+            }),
+        };
+
+        let context_str = serde_yaml::to_string(&context).unwrap();
+        std::fs::write(context_path, context_str)
+            .expect("Couldn't write savestate context object to file");
+
+        assert!(nds.write_savestate(localized));
     }
 }
 
@@ -282,18 +348,6 @@ async fn game(emu: Arc<Mutex<Emu>>, _config: Config) {
         let mut force_pause = false;
         let emu_state = emu.lock().unwrap().state;
 
-        {
-            let mut lock = emu.lock().unwrap();
-            let replay_opt = lock.replay.as_mut();
-            if let Some(replay) = replay_opt {
-                if let ReplayState::Write = replay.1 {
-                    let file = replay.0.name.clone();
-                    std::fs::write(file, serde_yaml::to_string(&replay.0).unwrap()).unwrap();
-                    lock.replay = None;
-                }
-            }
-        }
-
         match emu_state {
             EmuState::Stop => break,
             EmuState::Run | EmuState::Step => {
@@ -335,6 +389,7 @@ async fn game(emu: Arc<Mutex<Emu>>, _config: Config) {
                 ds.set_key_mask(nds_key);
                 ds.run_frame();
 
+                check_memory(ds.main_ram());
                 println!("Frame {}", ds.current_frame());
                 println!("Time is now {}", GAME_TIME.lock().unwrap());
 
@@ -357,44 +412,57 @@ async fn game(emu: Arc<Mutex<Emu>>, _config: Config) {
             EmuState::Pause => {}
         }
 
-        let (savestate_read_request, savestate_write_request, ram_write_request) = emu
-            .lock()
-            .map(|mut lock| {
-                (
-                    lock.savestate_read_request.take(),
-                    lock.savestate_write_request.take(),
-                    lock.ram_write_request.take(),
-                )
+        emu.lock()
+            .map(|mut emu| {
+                if let Some(read_path) = emu.savestate_read_request.take() {
+                    emu.read_savestate(&mut ds, read_path);
+                }
             })
             .unwrap();
 
-        if let Some(read_path) = savestate_read_request {
-            let (_, time) = ds.read_savestate(read_path);
-            emu.lock().unwrap().time = time;
-            // it seems this doesn't work, probably because it needs to run
-            // a frame to get the right framebuffer data anyway
-            // let mut mutex = emu.lock().unwrap();
-            // ds.update_framebuffers(&mut mutex.top_frame, false);
-            // ds.update_framebuffers(&mut mutex.bottom_frame, true);
+        emu.lock()
+            .map(|mut emu| {
+                if let Some(write_path) = emu.savestate_write_request.take() {
+                    emu.write_savestate(&mut ds, write_path);
+                }
+            })
+            .unwrap();
+
+        emu.lock()
+            .map(|mut emu| {
+                if let Some(write_path) = emu.ram_write_request.take() {
+                    let ram = ds.main_ram();
+                    std::fs::write(write_path, ram).unwrap();
+                    println!("main RAM written to ram.bin");
+                }
+            })
+            .unwrap();
+
+        {
+            let mut lock = emu.lock().unwrap();
+            let replay_opt = lock.replay.as_mut();
+            if let Some(replay) = replay_opt {
+                if let ReplayState::Write = replay.1 {
+                    let file = replay.0.name.clone();
+                    std::fs::write(file, serde_yaml::to_string(&replay.0).unwrap()).unwrap();
+                    lock.replay = None;
+                }
+            }
         }
-
-        if let Some(write_path) = savestate_write_request {
-            let time = emu.lock().unwrap().time;
-            ds.write_savestate(write_path, time);
-        }
-
-        if let Some(write_path) = ram_write_request {
-            let ram = ds.main_ram();
-            std::fs::write(write_path, ram).unwrap();
-            println!("main RAM written to ram.bin");
-        }
-
-        // let elapsed = before_instant.elapsed();
-
-        // if elapsed.as_nanos() < 16_666_667 {
-        // spin_sleeper.sleep_ns(16_666_667 - elapsed.as_nanos() as u64);
-        // }
     }
 
     ds.stop();
+}
+
+fn check_memory(ram: &[u8]) {
+    use std::io::{Seek, SeekFrom};
+    let mut mem_cursor = MemCursor::new(ram, MAIN_RAM_OFFSET as u64);
+    let actors = ActorCollection::read(&mut mem_cursor).unwrap();
+    // jp version stuff
+    // mem_cursor
+    //     .seek(SeekFrom::Start(0x02049e0c_u64))
+    //     .unwrap();
+    // // let actors = ActorCollection::read(&mut mem_cursor).unwrap();
+    // let actor = Actor::read(&mut mem_cursor).unwrap();
+    println!("{:#?}", actors);
 }
