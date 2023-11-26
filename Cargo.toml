@@ -16,6 +16,7 @@ serde_yaml = "0.9.21"
 chrono = { version = "0.4.30", features = ["serde"] }
 tokio = { version = "^1", features = ["full"] }
 byteorder = "1.4.3"
+rodio = "0.17.3"
 
 [build-dependencies]
 cmake = "0.1"

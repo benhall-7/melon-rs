@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread::spawn;
 
-use byteorder::{ReadBytesExt, LittleEndian};
+use byteorder::{LittleEndian, ReadBytesExt};
 use chrono::{DateTime, Duration, Utc};
 use config::{Config, ConfigFile, EmuAction, EmuInput};
 use glium::glutin::{
@@ -15,13 +15,15 @@ use melon::kssu::io::MemCursor;
 use melon::nds::Nds;
 use once_cell::sync::Lazy;
 use replay::{Replay, SavestateContext};
+use rodio::source::SineWave;
+use rodio::{OutputStream, Sink, Source};
 use tokio::time as ttime;
 use utils::localize_pathbuf;
 use window::{draw, get_draw_data};
 use winit::event::ModifiersState;
 
 use crate::melon::kssu::addresses::ACTOR_COLLECTION;
-use crate::melon::kssu::{ActorCollection, Actor};
+use crate::melon::kssu::{Actor, ActorCollection};
 use crate::melon::{nds::input::NdsKeyMask, save};
 use crate::replay::{ReplaySource, SavestateContextReplay};
 
@@ -49,10 +51,12 @@ pub enum ReplayState {
     Write,
 }
 
-#[derive(Debug)]
+// #[derive(Debug)]
 pub struct Emu {
     pub top_frame: [u8; 256 * 192 * 4],
     pub bottom_frame: [u8; 256 * 192 * 4],
+    // TODO: doesn't implement debug
+    pub audio: Sink,
     pub nds_input: NdsKeyMask,
     pub key_modifiers: ModifiersState,
     pub state: EmuState,
@@ -64,10 +68,11 @@ pub struct Emu {
 }
 
 impl Emu {
-    pub fn new(time: DateTime<Utc>) -> Self {
+    pub fn new(time: DateTime<Utc>, audio: Sink) -> Self {
         Emu {
             top_frame: [0; 256 * 192 * 4],
             bottom_frame: [0; 256 * 192 * 4],
+            audio,
             nds_input: NdsKeyMask::empty(),
             key_modifiers: ModifiersState::empty(),
             time,
@@ -77,12 +82,12 @@ impl Emu {
             // replay: None,
             replay: Some((
                 // Replay {
-                //     name: "Race 1".into(),
+                //     name: "Race 2".into(),
                 //     author: "Ben Hall".into(),
                 //     source: replay::ReplaySource::SaveFile {
                 //         path: "save.bin".into(),
                 //         timestamp: DateTime::parse_from_str(
-                //             "2023-09-13T12:00:00+0000",
+                //             "2023-09-24T12:00:00+0000",
                 //             "%Y-%m-%dT%H:%M:%S%.f%z",
                 //         )
                 //         .unwrap()
@@ -90,7 +95,7 @@ impl Emu {
                 //     },
                 //     inputs: vec![],
                 // },
-                serde_yaml::from_str(&std::fs::read_to_string("Race").unwrap()).unwrap(),
+                serde_yaml::from_str(&std::fs::read_to_string("Race 2").unwrap()).unwrap(),
                 ReplayState::Playing,
             )),
             ram_write_request: None,
@@ -162,10 +167,13 @@ async fn main() {
         .map(Into::into)
         .unwrap_or_default();
 
+    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+    let audio = Sink::try_new(&stream_handle).unwrap();
+
     let start_time = config.timestamp.unwrap_or_else(Utc::now);
     println!("start_time = {}", start_time);
 
-    let emu = Arc::new(Mutex::new(Emu::new(start_time)));
+    let emu = Arc::new(Mutex::new(Emu::new(start_time, audio)));
 
     let game_emu = emu.clone();
     let game_config = config.clone();
@@ -389,9 +397,21 @@ async fn game(emu: Arc<Mutex<Emu>>, _config: Config) {
                 ds.set_key_mask(nds_key);
                 ds.run_frame();
 
-                check_memory(ds.main_ram());
-                println!("Frame {}", ds.current_frame());
-                println!("Time is now {}", GAME_TIME.lock().unwrap());
+                // check_memory(ds.main_ram());
+
+                {
+                    let output = ds.read_audio_output();
+                    println!("number of read samples: {}", output.len() / 2);
+                    let source = melon::nds::audio::NdsAudio::new(output);
+                    
+                    let emu_audio = &emu.lock().unwrap().audio;
+                    if emu_audio.empty() {
+                        emu_audio.append(source);
+                    }
+                }
+
+                // println!("Frame {}", ds.current_frame());
+                // println!("Time is now {}", GAME_TIME.lock().unwrap());
 
                 // updates emu time
                 emu.lock().unwrap().time += Duration::nanoseconds(16_666_667);
@@ -403,9 +423,7 @@ async fn game(emu: Arc<Mutex<Emu>>, _config: Config) {
                     })
                     .unwrap();
 
-                if force_pause {
-                    emu.lock().unwrap().state = EmuState::Pause;
-                } else if let EmuState::Step = emu_state {
+                if force_pause || emu_state == EmuState::Step {
                     emu.lock().unwrap().state = EmuState::Pause;
                 }
             }

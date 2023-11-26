@@ -5,6 +5,7 @@ use once_cell::sync::Lazy;
 use super::sys;
 
 pub mod input;
+pub mod audio;
 
 pub static INSTANCE: Lazy<Mutex<Option<Nds>>> =
     Lazy::new(|| Mutex::new(Some(Nds::new().expect("Couldn't initialize NDS"))));
@@ -108,6 +109,12 @@ impl Nds {
                 GL_BetterPolygons: false,
             },
         );
+    }
+
+    pub fn read_audio_output(&mut self) -> Vec<i16> {
+        let mut buffer = [0i16; 1024 * 2];
+        let samples_read = unsafe { sys::spu::ReadOutput(&mut buffer as *mut i16, 1024) };
+        buffer[0..2 * samples_read as usize].into()
     }
 
     pub fn read_savestate(&mut self, file: String) -> bool {
