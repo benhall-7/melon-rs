@@ -91,16 +91,13 @@ impl Default for Config {
                     basic.1,
                 )
             })
-            .chain(
-                vec![(
-                    EmuInput {
-                        key_code: VirtualKeyCode::S,
-                        modifiers: ModifiersState::CTRL,
-                    },
-                    EmuAction::Save(String::from("save.bin")),
-                )]
-                .into_iter(),
-            )
+            .chain(vec![(
+                EmuInput {
+                    key_code: VirtualKeyCode::S,
+                    modifiers: ModifiersState::CTRL,
+                },
+                EmuAction::Save(String::from("save.bin")),
+            )])
             .collect(),
         }
     }

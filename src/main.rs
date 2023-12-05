@@ -15,7 +15,7 @@ use melon::kssu::io::MemCursor;
 use melon::nds::Nds;
 use once_cell::sync::Lazy;
 use replay::{Replay, SavestateContext};
-use rodio::source::SineWave;
+use rodio::source::{Empty, SineWave};
 use rodio::{OutputStream, Sink, Source};
 use tokio::time as ttime;
 use utils::localize_pathbuf;
@@ -24,6 +24,7 @@ use winit::event::ModifiersState;
 
 use crate::melon::kssu::addresses::ACTOR_COLLECTION;
 use crate::melon::kssu::{Actor, ActorCollection};
+use crate::melon::nds::audio::{self, NdsAudio};
 use crate::melon::{nds::input::NdsKeyMask, save};
 use crate::replay::{ReplaySource, SavestateContextReplay};
 
@@ -212,7 +213,7 @@ async fn main() {
                     *control_flow = glutin::event_loop::ControlFlow::Exit;
 
                     emu.lock().unwrap().state = EmuState::Stop;
-                    game_thread.take().map(|thread| async { thread.await });
+                    game_thread.take();
                 }
                 WindowEvent::ModifiersChanged(modifiers) => {
                     emu.lock().unwrap().key_modifiers = modifiers;
@@ -343,6 +344,12 @@ async fn game(emu: Arc<Mutex<Emu>>, _config: Config) {
 
     ds.start();
 
+    let audio_buffer: Arc<Mutex<Vec<i16>>> = Default::default();
+    {
+        let emu_audio = &mut emu.lock().unwrap().audio;
+        emu_audio.append(NdsAudio::new(audio_buffer.clone()));
+    }
+
     let mut timer = ttime::interval_at(
         ttime::Instant::now(),
         ttime::Duration::from_nanos(16_666_667),
@@ -399,18 +406,11 @@ async fn game(emu: Arc<Mutex<Emu>>, _config: Config) {
 
                 // check_memory(ds.main_ram());
 
-                {
-                    let output = ds.read_audio_output();
-                    println!("number of read samples: {}", output.len() / 2);
-                    let source = melon::nds::audio::NdsAudio::new(output);
-                    
-                    let emu_audio = &emu.lock().unwrap().audio;
-                    if emu_audio.empty() {
-                        emu_audio.append(source);
-                    }
-                }
+                // audio is sent to the audio buffer in 2 lines!
+                let output = ds.read_audio_output();
+                audio_buffer.lock().unwrap().extend(output);
 
-                // println!("Frame {}", ds.current_frame());
+                println!("Frame {}", ds.current_frame());
                 // println!("Time is now {}", GAME_TIME.lock().unwrap());
 
                 // updates emu time
