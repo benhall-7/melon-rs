@@ -83,7 +83,7 @@ impl Emu {
             // replay: None,
             replay: Some((
                 // Replay {
-                //     name: "Race 2".into(),
+                //     name: "Race 1".into(),
                 //     author: "Ben Hall".into(),
                 //     source: replay::ReplaySource::SaveFile {
                 //         path: "save.bin".into(),
@@ -96,7 +96,7 @@ impl Emu {
                 //     },
                 //     inputs: vec![],
                 // },
-                serde_yaml::from_str(&std::fs::read_to_string("Race 2").unwrap()).unwrap(),
+                serde_yaml::from_str(&std::fs::read_to_string("Race 1").unwrap()).unwrap(),
                 ReplayState::Playing,
             )),
             ram_write_request: None,
@@ -344,10 +344,10 @@ async fn game(emu: Arc<Mutex<Emu>>, _config: Config) {
 
     ds.start();
 
-    let audio_buffer: Arc<Mutex<Vec<i16>>> = Default::default();
+    let audio_queue: Arc<Mutex<Vec<i16>>> = Default::default();
     {
         let emu_audio = &mut emu.lock().unwrap().audio;
-        emu_audio.append(NdsAudio::new(audio_buffer.clone()));
+        emu_audio.append(NdsAudio::new(audio_queue.clone()));
     }
 
     let mut timer = ttime::interval_at(
@@ -355,8 +355,6 @@ async fn game(emu: Arc<Mutex<Emu>>, _config: Config) {
         ttime::Duration::from_nanos(16_666_667),
     );
     timer.set_missed_tick_behavior(ttime::MissedTickBehavior::Skip);
-    // let spin_sleeper = spin_sleep::SpinSleeper::new(4_000_000)
-    // .with_spin_strategy(spin_sleep::SpinStrategy::YieldThread);
     loop {
         timer.tick().await;
 
@@ -404,14 +402,14 @@ async fn game(emu: Arc<Mutex<Emu>>, _config: Config) {
                 ds.set_key_mask(nds_key);
                 ds.run_frame();
 
-                // check_memory(ds.main_ram());
+                check_memory(ds.main_ram());
 
-                // audio is sent to the audio buffer in 2 lines!
+                // audio is sent to the audio queue in 2 lines!
                 let output = ds.read_audio_output();
-                audio_buffer.lock().unwrap().extend(output);
+                audio_queue.lock().unwrap().extend(output);
 
                 println!("Frame {}", ds.current_frame());
-                // println!("Time is now {}", GAME_TIME.lock().unwrap());
+                println!("Time is now {}", GAME_TIME.lock().unwrap());
 
                 // updates emu time
                 emu.lock().unwrap().time += Duration::nanoseconds(16_666_667);

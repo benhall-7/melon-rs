@@ -8,22 +8,23 @@ This code is licensed under GPL v3. To understand the terms, review the `LICENSE
 
 ## features
 
-- 60fps emulation (audio not included)
+- Smooth 60fps emulation (audio included!)
 - Play/pause button
 - Frame step button
 - Save file loading
 - Input configurability (via the `config.yml` file)
 - Savestate support
+- Determinism (AKA emulated time)
+- Input recording and playback (janky)
 
 ## games
 
-So far, only Kirby Super Star Ultra has been tested, as this is the only game I intended to test. 2D games are all likely to work, but I can't say the same for 3D games (e.g. Animal Crossing: Wild World). You're welcome to test it out if you like
+So far, only Kirby Super Star Ultra has been tested, as this is the only game I intended to test. Most games are likely to work, although maybe there's some that require special code I haven't handled. You're welcome to test it out if you like
 
 ## todo
 
-- Input recording and playback
+- Input recording and playback (not janky)
 - Touch screen support
-- Audio support
 - Scripting environment
 - Code hooking
 - Debugging support (is this possible?)
