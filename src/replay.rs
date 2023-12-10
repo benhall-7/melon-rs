@@ -19,20 +19,22 @@ pub struct Replay {
 /// or from the emulator startup with no backing state.
 /// Using a save file is preferred. Starting a replay from a savestate
 /// makes it not possible to prove if game memory was tampered with,
-/// while having no consistent source is likely to cause desyncs
+/// while having no consistent source is likely to cause desyncs.
+/// 
+/// TODO: implement more than just save file recordings
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum ReplaySource {
     SaveFile {
-        path: PathBuf,
+        path: Option<PathBuf>,
         timestamp: DateTime<Utc>,
     },
-    Savestate {
-        path: PathBuf,
-        start_frame: u32,
-    },
-    None {
-        timestamp: DateTime<Utc>,
-    },
+    // Savestate {
+    //     path: PathBuf,
+    //     start_frame: u32,
+    // },
+    // None {
+    //     timestamp: DateTime<Utc>,
+    // },
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]

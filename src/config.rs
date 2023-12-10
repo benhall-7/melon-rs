@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 use chrono::{DateTime, Utc};
 use glium::glutin::event::{ModifiersState, VirtualKeyCode};
@@ -45,7 +45,8 @@ pub enum EmuAction {
     Save(String),
     ReadSavestate(String),
     WriteSavestate(String),
-    QuitRecording,
+    ToggleReplayMode,
+    SaveReplay,
     WriteMainRAM(String),
 }
 
@@ -57,6 +58,8 @@ pub struct EmuInput {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Config {
+    pub default_game_path: Option<PathBuf>,
+    pub default_save_path: Option<PathBuf>,
     pub timestamp: Option<DateTime<Utc>>,
     pub key_map: HashMap<EmuInput, EmuAction>,
 }
@@ -64,6 +67,8 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Config {
+            default_game_path: None,
+            default_save_path: None,
             timestamp: None,
             key_map: vec![
                 (VirtualKeyCode::K, EmuAction::NdsKey(NdsKey::A)),
@@ -117,6 +122,8 @@ pub struct ConfigKeyMapEntry {
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ConfigFile {
+    pub default_game_path: Option<PathBuf>,
+    pub default_save_path: Option<PathBuf>,
     pub timestamp: Option<DateTime<Utc>>,
     pub key_map: Vec<ConfigKeyMapEntry>,
 }
@@ -133,6 +140,8 @@ impl From<EmuInputEntry> for EmuInput {
 impl From<ConfigFile> for Config {
     fn from(value: ConfigFile) -> Self {
         Config {
+            default_game_path: value.default_game_path,
+            default_save_path: value.default_save_path,
             timestamp: value.timestamp,
             key_map: value
                 .key_map
@@ -146,6 +155,8 @@ impl From<ConfigFile> for Config {
 impl From<Config> for ConfigFile {
     fn from(value: Config) -> Self {
         ConfigFile {
+            default_game_path: value.default_game_path,
+            default_save_path: value.default_save_path,
             timestamp: value.timestamp,
             key_map: value
                 .key_map

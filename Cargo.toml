@@ -17,6 +17,7 @@ chrono = { version = "0.4.30", features = ["serde"] }
 tokio = { version = "^1", features = ["full"] }
 byteorder = "1.4.3"
 rodio = "0.17.3"
+clap = { version = "4.4.11", features = ["derive"] }
 
 [build-dependencies]
 cmake = "0.1"

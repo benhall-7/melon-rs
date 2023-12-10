@@ -3,8 +3,8 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread::spawn;
 
-use byteorder::{LittleEndian, ReadBytesExt};
 use chrono::{DateTime, Duration, Utc};
+use clap::Parser;
 use config::{Config, ConfigFile, EmuAction, EmuInput};
 use glium::glutin::{
     self,
@@ -15,19 +15,21 @@ use melon::kssu::io::MemCursor;
 use melon::nds::Nds;
 use once_cell::sync::Lazy;
 use replay::{Replay, SavestateContext};
-use rodio::source::{Empty, SineWave};
-use rodio::{OutputStream, Sink, Source};
+use rodio::{OutputStream, Sink};
 use tokio::time as ttime;
 use utils::localize_pathbuf;
 use window::{draw, get_draw_data};
 use winit::event::ModifiersState;
 
+use crate::args::Commands;
 use crate::melon::kssu::addresses::ACTOR_COLLECTION;
 use crate::melon::kssu::{Actor, ActorCollection};
-use crate::melon::nds::audio::{self, NdsAudio};
-use crate::melon::{nds::input::NdsKeyMask, save};
+use crate::melon::nds::audio::NdsAudio;
+use crate::melon::nds::input::NdsKeyMask;
+use crate::melon::save;
 use crate::replay::{ReplaySource, SavestateContextReplay};
 
+pub mod args;
 pub mod config;
 pub mod events;
 pub mod melon;
@@ -49,7 +51,6 @@ pub enum EmuState {
 pub enum ReplayState {
     Recording,
     Playing,
-    Write,
 }
 
 // #[derive(Debug)]
@@ -66,10 +67,11 @@ pub struct Emu {
     pub savestate_read_request: Option<String>,
     pub replay: Option<(Replay, ReplayState)>,
     pub ram_write_request: Option<String>,
+    pub replay_save_request: bool,
 }
 
 impl Emu {
-    pub fn new(time: DateTime<Utc>, audio: Sink) -> Self {
+    pub fn new(time: DateTime<Utc>, audio: Sink, replay: Option<(Replay, ReplayState)>) -> Self {
         Emu {
             top_frame: [0; 256 * 192 * 4],
             bottom_frame: [0; 256 * 192 * 4],
@@ -80,30 +82,13 @@ impl Emu {
             state: EmuState::Pause,
             savestate_read_request: None,
             savestate_write_request: None,
-            // replay: None,
-            replay: Some((
-                // Replay {
-                //     name: "Race 1".into(),
-                //     author: "Ben Hall".into(),
-                //     source: replay::ReplaySource::SaveFile {
-                //         path: "save.bin".into(),
-                //         timestamp: DateTime::parse_from_str(
-                //             "2023-09-24T12:00:00+0000",
-                //             "%Y-%m-%dT%H:%M:%S%.f%z",
-                //         )
-                //         .unwrap()
-                //         .into(),
-                //     },
-                //     inputs: vec![],
-                // },
-                serde_yaml::from_str(&std::fs::read_to_string("Race 1").unwrap()).unwrap(),
-                ReplayState::Playing,
-            )),
+            replay,
             ram_write_request: None,
+            replay_save_request: false,
         }
     }
 
-    // TODO: these may be pretty to run from inside the emu lock
+    // TODO: these may be pretty expensive to run from inside the emu lock
     fn read_savestate(&mut self, nds: &mut Nds, file: String) {
         let localized = localize_pathbuf(file).to_string_lossy().into_owned();
 
@@ -116,7 +101,12 @@ impl Emu {
             println!("Couldn't read savestate: {}", context_path);
             return;
         }
-        let context: SavestateContext = serde_yaml::from_str(&context_str.unwrap()).unwrap();
+        let context_result = serde_yaml::from_str(context_str.as_ref().unwrap());
+        if context_result.is_err() {
+            println!("Couldn't read savestate context: {}", context_str.unwrap());
+            return;
+        }
+        let context: SavestateContext = context_result.unwrap();
 
         match (&mut self.replay, context.replay) {
             (Some(replay), Some(replay_context)) => {
@@ -162,24 +152,94 @@ impl Emu {
 
 #[tokio::main]
 async fn main() {
+    let args = args::Args::parse();
+
     let config: Config = std::fs::read_to_string("config.yml")
         .ok()
         .map(|yml| serde_yaml::from_str::<ConfigFile>(&yml).unwrap())
         .map(Into::into)
         .unwrap_or_default();
 
+    let game_name = args.game.as_ref().or(config.default_game_path.as_ref()).map(Clone::clone).expect("No game was selected in the command arguments, and no default game was included in the config");
+    let mut save_name = None;
+    let mut replay: Option<(Replay, ReplayState)> = None;
+
+    let mut start_time = config.timestamp.unwrap_or_else(Utc::now);
+
+    match &args.command {
+        Commands::Play(play_args) => {
+            if !play_args.no_save {
+                save_name = play_args
+                    .save
+                    .as_ref()
+                    .or(config.default_save_path.as_ref())
+                    .map(Clone::clone);
+            }
+        }
+        Commands::Replay(replay_args) => {
+            replay = Some((
+                serde_yaml::from_str(&std::fs::read_to_string(&replay_args.name).unwrap()).unwrap(),
+                ReplayState::Playing,
+            ));
+        }
+        Commands::Record(record_args) => {
+            replay = Some((
+                Replay {
+                    name: record_args.name.clone(),
+                    author: record_args.author.clone().unwrap_or_default(),
+                    source: ReplaySource::SaveFile {
+                        path: record_args.save.clone(),
+                        timestamp: record_args
+                            .timestamp
+                            .as_ref()
+                            .map(|datetime| {
+                                DateTime::parse_from_str(datetime, "%Y-%m-%dT%H:%M:%S%.f%z")
+                                    .expect("The datetime could not be parsed")
+                            })
+                            .map(Into::into)
+                            .unwrap_or_else(Utc::now),
+                    },
+                    inputs: vec![],
+                },
+                ReplayState::Recording,
+            ))
+        }
+    }
+
+    if let Some((replay, _)) = &replay {
+        match &replay.source {
+            ReplaySource::SaveFile { path, timestamp } => {
+                save_name = path.clone();
+                start_time = *timestamp;
+            }
+        }
+    }
+
+    let cart = std::fs::read(&game_name).unwrap_or_else(|_| {
+        panic!(
+            "Couldn't find game file with path {}",
+            game_name.to_string_lossy()
+        )
+    });
+    let save = save_name.map(|name| {
+        std::fs::read(&name).unwrap_or_else(|_| {
+            panic!(
+                "Couldn't open save file with path {}",
+                name.to_string_lossy()
+            )
+        })
+    });
+    println!("start_time = {}", start_time);
+
+    // NOTE: rodio requires the OutputStream not to go out of scope until the end
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
     let audio = Sink::try_new(&stream_handle).unwrap();
 
-    let start_time = config.timestamp.unwrap_or_else(Utc::now);
-    println!("start_time = {}", start_time);
-
-    let emu = Arc::new(Mutex::new(Emu::new(start_time, audio)));
+    let emu = Arc::new(Mutex::new(Emu::new(start_time, audio, replay)));
 
     let game_emu = emu.clone();
-    let game_config = config.clone();
     let mut game_thread = Some(tokio::spawn(async move {
-        game(game_emu, game_config).await;
+        game(game_emu, cart, save).await;
     }));
 
     let events_loop = glutin::event_loop::EventLoop::new();
@@ -281,13 +341,28 @@ async fn main() {
                             }
                             emu.lock().unwrap().savestate_write_request = Some(path);
                         }
-                        EmuAction::QuitRecording => {
+                        EmuAction::ToggleReplayMode => {
                             if let ElementState::Released = state {
                                 return;
                             }
                             if let Some(state) = emu.lock().unwrap().replay.as_mut() {
-                                state.1 = ReplayState::Write
+                                match state.1 {
+                                    ReplayState::Playing => {
+                                        state.1 = ReplayState::Recording;
+                                        println!("Switched to write mode");
+                                    }
+                                    ReplayState::Recording => {
+                                        state.1 = ReplayState::Playing;
+                                        println!("Switched to read mode");
+                                    }
+                                }
                             }
+                        }
+                        EmuAction::SaveReplay => {
+                            if let ElementState::Released = state {
+                                return;
+                            }
+                            emu.lock().unwrap().replay_save_request = true;
                         }
                         EmuAction::WriteMainRAM(path) => {
                             if let ElementState::Released = state {
@@ -303,38 +378,11 @@ async fn main() {
     });
 }
 
-async fn game(emu: Arc<Mutex<Emu>>, _config: Config) {
+async fn game(emu: Arc<Mutex<Emu>>, cart: Vec<u8>, save: Option<Vec<u8>>) {
     let mut ds_lock = melon::nds::INSTANCE.lock().await;
     let mut ds = ds_lock.take().unwrap();
 
-    let nds_cart = std::fs::read("/Users/benjamin/Desktop/ds/Ultra.nds").unwrap();
-
-    {
-        let mut emu = emu.lock().unwrap();
-        let replay_opt = emu.replay.as_ref();
-
-        let mut start_time = None;
-        let mut save_data = None;
-
-        if let Some((replay, _)) = replay_opt {
-            match &replay.source {
-                ReplaySource::None { timestamp } => start_time = Some(*timestamp),
-                ReplaySource::SaveFile { path, timestamp } => {
-                    start_time = Some(*timestamp);
-                    save_data = Some(std::fs::read(path).unwrap());
-                }
-                _ => todo!(),
-            }
-        } else {
-            save_data = std::fs::read("save.bin").ok();
-        }
-
-        ds.load_cart(&nds_cart, save_data.as_deref());
-
-        if let Some(timestamp) = start_time {
-            emu.time = timestamp;
-        }
-    }
+    ds.load_cart(&cart, save.as_deref());
 
     println!("Needs direct boot? {:?}", ds.needs_direct_boot());
 
@@ -385,12 +433,15 @@ async fn game(emu: Arc<Mutex<Emu>>, _config: Config) {
                                 let current_frame = ds.current_frame() as usize;
                                 if current_frame <= replay.inputs.len() {
                                     replay.inputs.splice(current_frame.., [emu_inputs.bits()]);
+                                } else {
+                                    println!(
+                                        "WARNING: the replay is in recording mode, but \
+                                        cannot record new inputs, because the current \
+                                        frame extends beyond the last recorded frame"
+                                    )
                                 }
-                                // TODO: else block. A frame is skipped in recording (which
-                                // can only really happen if you load a bad savestate)
                                 emu_inputs
                             }
-                            ReplayState::Write => emu_inputs,
                         },
                     }
                 };
@@ -454,17 +505,19 @@ async fn game(emu: Arc<Mutex<Emu>>, _config: Config) {
             })
             .unwrap();
 
-        {
-            let mut lock = emu.lock().unwrap();
-            let replay_opt = lock.replay.as_mut();
-            if let Some(replay) = replay_opt {
-                if let ReplayState::Write = replay.1 {
-                    let file = replay.0.name.clone();
-                    std::fs::write(file, serde_yaml::to_string(&replay.0).unwrap()).unwrap();
-                    lock.replay = None;
+        emu.lock()
+            .map(|mut emu| {
+                if emu.replay_save_request {
+                    emu.replay_save_request = false;
+
+                    if let Some(replay) = &emu.replay {
+                        let file = replay.0.name.clone();
+                        std::fs::write(file, serde_yaml::to_string(&replay.0).unwrap()).unwrap();
+                        println!("saved replay to {}", replay.0.name.to_string_lossy());
+                    }
                 }
-            }
-        }
+            })
+            .unwrap();
     }
 
     ds.stop();
