@@ -4,6 +4,7 @@ use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
 pub struct Args {
+    /// The path of the game to load
     #[arg(short, long)]
     pub game: Option<PathBuf>,
 
@@ -15,7 +16,7 @@ pub struct Args {
 pub enum Commands {
     /// Play the emulator normally, with no replays
     Play(PlayArgs),
-    /// Play a replay
+    /// Play or edit an existing replay
     Replay(ReplayArgs),
     /// Record a new replay
     Record(RecordArgs),
@@ -23,12 +24,12 @@ pub enum Commands {
 
 #[derive(Debug, Parser)]
 pub struct PlayArgs {
-    #[arg(short, long)]
     /// The path of the save file to load, overriding the default in the config
+    #[arg(short, long)]
     pub save: Option<PathBuf>,
 
-    #[arg(long)]
     /// Disable loading a save file, even if a default is provided by the config
+    #[arg(long)]
     pub no_save: bool,
 }
 
