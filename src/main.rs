@@ -533,5 +533,5 @@ fn check_memory(ram: &[u8]) {
     //     .unwrap();
     // // let actors = ActorCollection::read(&mut mem_cursor).unwrap();
     // let actor = Actor::read(&mut mem_cursor).unwrap();
-    println!("{:#X?}", actors);
+    println!("{:#?}", actors);
 }
