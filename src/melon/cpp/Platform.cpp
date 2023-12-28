@@ -6,6 +6,8 @@
 
 #include "melon-rs/src/melon/sys.rs.h"
 
+using namespace melonDS;
+
 namespace Platform
 {
     // void Init(int argc, char **argv);
@@ -22,22 +24,6 @@ namespace Platform
     std::string InstanceFileSuffix()
     {
         return std::string(Glue::InstanceFileSuffix());
-    }
-    int GetConfigInt(ConfigEntry entry)
-    {
-        return Glue::GetConfigInt(entry);
-    }
-    bool GetConfigBool(ConfigEntry entry)
-    {
-        return Glue::GetConfigBool(entry);
-    }
-    std::string GetConfigString(ConfigEntry entry)
-    {
-        return std::string(Glue::GetConfigString(entry));
-    }
-    bool GetConfigArray(ConfigEntry entry, void *data)
-    {
-        return Glue::GetConfigArray(entry, (u8 *)data);
     }
 
     // I might have been able to implement these two in Rust, but they presented

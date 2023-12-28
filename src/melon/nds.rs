@@ -22,7 +22,7 @@ pub enum ConsoleType {
 
 impl Nds {
     fn new() -> Result<Self, ()> {
-        let res = sys::nds::Init();
+        let res = sys::platform::glue::NDS_CreateUniquePtr();
         if res {
             let mut nds = Nds(());
             nds.set_console_type(ConsoleType::DS);

@@ -6,6 +6,8 @@
 
 #include "rust/cxx.h"
 
+using namespace melonDS;
+
 namespace Util
 {
     // https://stackoverflow.com/a/47063995/11423867
@@ -37,6 +39,12 @@ namespace Util
 
         memcpy(dest, screens[ind], 4 * 256 * 192);
         return true;
+    }
+
+    // NDS
+
+    std::unique_ptr<NDS> NDS_CreateUniquePtr() {
+        return std::make_unique<NDS>();
     }
 
     void NDS_SetupDirectBoot(rust::String romname)

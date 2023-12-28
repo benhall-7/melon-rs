@@ -39,65 +39,67 @@ pub mod replacements {
     }
 }
 
-#[cxx::bridge(namespace = "NDS")]
+#[cxx::bridge(namespace = "melonDS")]
 pub mod nds {
     unsafe extern "C++" {
         include!("NDS.h");
 
-        fn Init() -> bool;
-        fn DeInit();
-        fn Reset();
+        type NDS;
 
-        fn SetConsoleType(console_type: i32);
+        // fn Init(&self) -> bool;
+        // fn DeInit();
+        // fn Reset(&mut self);
 
-        fn CartInserted() -> bool;
-        unsafe fn LoadCart(
-            romdata: *const u8,
-            romlen: u32,
-            savedata: *const u8,
-            savelen: u32,
-        ) -> bool;
+        // fn SetConsoleType(this: Pin<&mut NDS>, console_type: i32);
 
-        fn SetKeyMask(mask: u32);
-        fn IsLidClosed() -> bool;
-        fn SetLidClosed(closed: bool);
+        fn CartInserted(&self) -> bool;
+        // unsafe fn LoadCart(
+        //     romdata: *const u8,
+        //     romlen: u32,
+        //     savedata: *const u8,
+        //     savelen: u32,
+        // ) -> bool;
 
-        fn NeedsDirectBoot() -> bool;
+        // fn SetKeyMask(mask: u32);
+        // fn IsLidClosed() -> bool;
+        // fn SetLidClosed(closed: bool);
 
-        fn Start();
-        fn Stop();
-        fn RunFrame() -> u32;
+        // fn NeedsDirectBoot() -> bool;
+
+        // fn Start();
+        // fn Stop();
+        // fn RunFrame() -> u32;
     }
 }
 
-#[cxx::bridge(namespace = "GPU")]
-pub mod gpu {
-    unsafe extern "C++" {
-        include!("GPU.h");
+// #[cxx::bridge(namespace = "GPU")]
+// pub mod gpu {
+//     unsafe extern "C++" {
+//         include!("GPU.h");
 
-        type RenderSettings;
+//         type RenderSettings;
 
-        fn SetRenderSettings(renderer: i32, settings: &mut RenderSettings);
+//         fn SetRenderSettings(renderer: i32, settings: &mut RenderSettings);
 
-        fn InitRenderer(renderer: i32);
-    }
+//         fn InitRenderer(renderer: i32);
+//     }
 
-    pub struct RenderSettings {
-        pub Soft_Threaded: bool,
-        pub GL_ScaleFactor: i32,
-        pub GL_BetterPolygons: bool,
-    }
-}
+//     pub struct RenderSettings {
+//         pub Soft_Threaded: bool,
+//         pub GL_ScaleFactor: i32,
+//         pub GL_BetterPolygons: bool,
+//     }
+// }
 
-#[cxx::bridge(namespace = "SPU")]
-pub mod spu {
-    unsafe extern "C++" {
-        include!("SPU.h");
+// #[cxx::bridge(namespace = "SPU")]
+// pub mod spu {
+//     unsafe extern "C++" {
+//         include!("SPU.h");
 
-        /// NOTE: the data length must be greater than twice the sample count
-        unsafe fn ReadOutput(data: *mut i16, samples: i32) -> i32;
-    }
-}
+//         /// NOTE: the data length must be greater than twice the sample count
+//         unsafe fn ReadOutput(data: *mut i16, samples: i32) -> i32;
+//     }
+// }
 
 #[allow(unused_variables)]
 pub mod platform {
@@ -146,15 +148,6 @@ pub mod platform {
                 height: i32,
                 yuv: bool,
             );
-
-            #[cxx_name = "GetConfigBool"]
-            fn get_config_bool(entry: ConfigEntry) -> bool;
-            #[cxx_name = "GetConfigInt"]
-            fn get_config_int(entry: ConfigEntry) -> i32;
-            #[cxx_name = "GetConfigString"]
-            fn get_config_string(entry: ConfigEntry) -> String;
-            #[cxx_name = "GetConfigArray"]
-            unsafe fn get_config_array(entry: ConfigEntry, data: *const u8) -> bool;
 
             #[cxx_name = "Thread_Create"]
             unsafe fn thread_create(func: *mut OpaqueFunction) -> *mut NdsThread;
@@ -227,12 +220,6 @@ pub mod platform {
             );
         }
 
-        #[namespace = "Platform"]
-        unsafe extern "C++" {
-            include!("Platform.h");
-            type ConfigEntry;
-        }
-
         #[namespace = "Util"]
         unsafe extern "C++" {
             include!("Util.h");
@@ -242,57 +229,19 @@ pub mod platform {
             unsafe fn OpaqueFunction_Call(func: *mut OpaqueFunction);
             unsafe fn OpaqueFunction_Free(func: *mut OpaqueFunction);
 
-            pub unsafe fn Copy_Framebuffers(dest: *mut u8, index: bool) -> bool;
+            // pub unsafe fn Copy_Framebuffers(dest: *mut u8, index: bool) -> bool;
+
+            pub fn NDS_CreateUniquePtr() -> UniquePtr<NDS>;
 
             pub fn NDS_SetupDirectBoot(romname: String);
 
             pub fn ReadSavestate(filename: String) -> bool;
             pub fn WriteSavestate(filename: String) -> bool;
 
-            pub fn CurrentFrame() -> u32;
+            // pub fn CurrentFrame() -> u32;
 
-            pub fn MainRAM() -> *mut u8;
-            pub fn MainRAMMaxSize() -> u32;
-        }
-
-        #[repr(u32)]
-        #[derive(Debug, Clone, Copy)]
-        #[namespace = "Platform"]
-        enum ConfigEntry {
-            // JIT_Enable,
-            // JIT_MaxBlockSize,
-            // JIT_LiteralOptimizations,
-            // JIT_BranchOptimizations,
-            // JIT_FastMemory,
-            ExternalBIOSEnable,
-            BIOS9Path,
-            BIOS7Path,
-            FirmwarePath,
-            DSi_BIOS9Path,
-            DSi_BIOS7Path,
-            DSi_FirmwarePath,
-            DSi_NANDPath,
-            DLDI_Enable,
-            DLDI_ImagePath,
-            DLDI_ImageSize,
-            DLDI_ReadOnly,
-            DLDI_FolderSync,
-            DLDI_FolderPath,
-            DSiSD_Enable,
-            DSiSD_ImagePath,
-            DSiSD_ImageSize,
-            DSiSD_ReadOnly,
-            DSiSD_FolderSync,
-            DSiSD_FolderPath,
-            Firm_OverrideSettings,
-            Firm_Username,
-            Firm_Language,
-            Firm_BirthdayMonth,
-            Firm_BirthdayDay,
-            Firm_Color,
-            Firm_Message,
-            Firm_MAC,
-            AudioBitrate,
+            // pub fn MainRAM() -> *mut u8;
+            // pub fn MainRAMMaxSize() -> u32;
         }
     }
 
@@ -320,57 +269,6 @@ pub mod platform {
         height: i32,
         yuv: bool,
     ) {
-    }
-
-    use crate::config;
-    use glue::ConfigEntry;
-    fn get_config_bool(entry: ConfigEntry) -> bool {
-        match entry {
-            ConfigEntry::ExternalBIOSEnable => config::EXTERNAL_BIOSENABLE,
-            ConfigEntry::DLDI_Enable => config::DLDIENABLE,
-            ConfigEntry::DLDI_ReadOnly => config::DLDIREAD_ONLY,
-            ConfigEntry::DLDI_FolderSync => config::DLDIFOLDER_SYNC,
-            ConfigEntry::DSiSD_Enable => config::DSI_SDENABLE,
-            ConfigEntry::DSiSD_ReadOnly => config::DSI_SDREAD_ONLY,
-            ConfigEntry::DSiSD_FolderSync => config::DSI_SDFOLDER_SYNC,
-            ConfigEntry::Firm_OverrideSettings => config::FIRMWARE_OVERRIDE_SETTINGS,
-            _ => false,
-        }
-    }
-    fn get_config_int(entry: ConfigEntry) -> i32 {
-        let img_sizes = [0, 256, 512, 1024, 2048, 4096];
-        match entry {
-            ConfigEntry::DLDI_ImageSize => config::DLDISIZE,
-            ConfigEntry::DSiSD_ImageSize => config::DSI_SDSIZE,
-            ConfigEntry::Firm_Language => config::FIRMWARE_LANGUAGE,
-            ConfigEntry::Firm_BirthdayMonth => config::FIRMWARE_BIRTHDAY_MONTH,
-            ConfigEntry::Firm_BirthdayDay => config::FIRMWARE_BIRTHDAY_DAY,
-            ConfigEntry::Firm_Color => config::FIRMWARE_FAVOURITE_COLOUR,
-            ConfigEntry::AudioBitrate => config::AUDIO_BITRATE,
-            _ => 0,
-        }
-    }
-    fn get_config_string(entry: ConfigEntry) -> String {
-        match entry {
-            ConfigEntry::BIOS9Path => config::BIOS9_PATH,
-            ConfigEntry::BIOS7Path => config::BIOS7_PATH,
-            ConfigEntry::FirmwarePath => config::FIRMWARE_PATH,
-            ConfigEntry::DSi_BIOS9Path => config::DSI_BIOS9_PATH,
-            ConfigEntry::DSi_BIOS7Path => config::DSI_BIOS7_PATH,
-            ConfigEntry::DSi_FirmwarePath => config::DSI_FIRMWARE_PATH,
-            ConfigEntry::DSi_NANDPath => config::DSI_NANDPATH,
-            ConfigEntry::DLDI_ImagePath => config::DLDISDPATH,
-            ConfigEntry::DLDI_FolderPath => config::DLDIFOLDER_PATH,
-            ConfigEntry::DSiSD_ImagePath => config::DSI_SDPATH,
-            ConfigEntry::DSiSD_FolderPath => config::DSI_SDFOLDER_PATH,
-            ConfigEntry::Firm_Username => config::FIRMWARE_USERNAME,
-            ConfigEntry::Firm_Message => config::FIRMWARE_MESSAGE,
-            _ => "",
-        }
-        .into()
-    }
-    fn get_config_array(_entry: ConfigEntry, _data: *const u8) -> bool {
-        false
     }
 
     struct NdsThread {
