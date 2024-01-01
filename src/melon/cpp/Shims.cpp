@@ -31,19 +31,27 @@ namespace Shims
         return true;
     }
 
+    int SPU_ReadOutput(NDS &nds, s16 *data, int samples)
+    {
+        return nds.SPU.ReadOutput(data, samples);
+    }
+
     bool ReadSavestate(NDS &nds, const u8 *source, s32 len)
     {
         Savestate state(&source, len, false);
         return nds.DoSavestate(&state);
     }
 
-    bool WriteSavestate(NDS &nds, rust::Fn<void(const u8 *source, s32 len)> store)
+    bool WriteSavestate(NDS &nds, std::vector<u8> *data)
     {
         Savestate state;
         if (nds.DoSavestate(&state))
         {
-            auto buffer = *(u8 *)state.Buffer();
-            store(&buffer, state.Length());
+            auto buffer = (u8 *)state.Buffer();
+            auto len = state.Length();
+
+            *data = std::vector<u8>(buffer, buffer + len);
+            
             return true;
         }
         return false;

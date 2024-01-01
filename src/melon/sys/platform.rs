@@ -2,7 +2,7 @@ use std::{
     ptr::drop_in_place,
     slice,
     sync::{Mutex, MutexGuard, TryLockError},
-    thread::{spawn, JoinHandle},
+    thread::{spawn, JoinHandle}, fs::File,
 };
 
 use crate::melon::{save::write_save, subscriptions};
@@ -12,16 +12,20 @@ pub mod sys {
     #[namespace = "Glue"]
     extern "Rust" {
         #[cxx_name = "Thread"]
-        #[namespace = "Platform"]
+        #[namespace = "melonDS::Platform"]
         type NdsThread;
 
         #[cxx_name = "Semaphore"]
-        #[namespace = "Platform"]
+        #[namespace = "melonDS::Platform"]
         type NdsSemaphore;
 
         #[cxx_name = "Mutex"]
-        #[namespace = "Platform"]
+        #[namespace = "melonDS::Platform"]
         type NdsMutex;
+
+        #[cxx_name = "FileHandle"]
+        #[namespace = "melonDS::Platform"]
+        type NdsFileHandle;
 
         #[cxx_name = "InstanceID"]
         fn instance_id() -> i32;
@@ -166,10 +170,6 @@ impl NdsThread {
     }
 }
 
-use crate::melon::sys::platform::{
-    OpaqueFunction, OpaqueFunction_Call, OpaqueFunction_Free,
-};
-
 struct OpaqueWrapper(*mut OpaqueFunction);
 
 impl OpaqueWrapper {
@@ -292,6 +292,8 @@ unsafe fn mutex_unlock(mutex: *mut NdsMutex) {
 unsafe fn mutex_free(mutex: *mut NdsMutex) {
     drop_in_place(mutex);
 }
+
+pub struct NdsFileHandle(pub File);
 
 fn lan_init() -> bool {
     // TODO: provide an event subscription

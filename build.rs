@@ -15,6 +15,7 @@ fn main() {
         .define("BUILD_QT_SDL", "OFF")
         .build_target("all")
         .define("INTERCEPT", "ON")
+        // this lets us replace the in-game time invocation with an emulated version
         .define(
             "CMAKE_CXX_FLAGS",
             format!("--include {}", replacements.display()),
@@ -35,9 +36,11 @@ fn main() {
             .map(|file| format!("src/melon/sys/{file}.rs")),
     )
     .include("melonDS/src")
-    .include("melonDS/src/frontend/glad")
     .include("src/melon/cpp")
     .file("src/melon/cpp/Platform.cpp")
+    .file("src/melon/cpp/Shims.cpp")
+    .file("src/melon/cpp/Util.cpp")
+    .include("melonDS/src/frontend/glad")
     .file("melonDS/src/frontend/glad/glad.c")
     .flag_if_supported("-std=c++17")
     .compile("melon-bindings"); // arbitrary library name, pick anything

@@ -11,9 +11,10 @@ namespace Shims
     std::unique_ptr<NDS> New_NDS();
 
     bool Copy_Framebuffers(const NDS &nds, u8 *dest, bool index);
+    s32 SPU_ReadOutput(NDS &nds, s16 *data, s32 samples);
 
     bool ReadSavestate(NDS &nds, const u8 *source, s32 len);
-    bool WriteSavestate(NDS &nds, rust::Fn<void(const u8 *source, s32 len)> store);
+    bool WriteSavestate(NDS &nds, std::vector<u8> *data);
 
     u32 CurrentFrame(const NDS &nds);
 

@@ -9,7 +9,7 @@
 
 using namespace melonDS;
 
-namespace Platform
+namespace melonDS::Platform
 {
     // void Init(int argc, char **argv);
     // void DeInit();

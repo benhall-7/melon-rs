@@ -1,4 +1,3 @@
-
 #[cxx::bridge(namespace = "Shims")]
 mod sys {
     unsafe extern "C++" {
@@ -14,19 +13,18 @@ mod sys {
 
         pub fn New_NDS() -> UniquePtr<NDS>;
 
+        pub unsafe fn Copy_Framebuffers(nds: &NDS, dest: *mut u8, index: bool) -> bool;
+        pub unsafe fn SPU_ReadOutput(nds: Pin<&mut NDS>, data: *mut i16, samples: i32) -> i32;
+
         pub unsafe fn ReadSavestate(nds: Pin<&mut NDS>, contents: *const u8, len: i32) -> bool;
-        pub unsafe fn WriteSavestate(
-            nds: Pin<&mut NDS>,
-            store: unsafe fn(source: *const u8, len: i32),
-        ) -> bool;
+        pub unsafe fn WriteSavestate(nds: Pin<&mut NDS>, data: *mut CxxVector<u8>) -> bool;
 
-        pub unsafe fn Copy_Framebuffers(nds: Pin<&NDS>, dest: *mut u8, index: bool) -> bool;
-        pub unsafe fn CurrentFrame(nds: Pin<&NDS>) -> u32;
+        pub unsafe fn CurrentFrame(nds: &NDS) -> u32;
 
-        pub unsafe fn MainRAM(nds: Pin<&NDS>) -> *const u8;
+        pub unsafe fn MainRAM(nds: &NDS) -> *const u8;
         pub unsafe fn MainRAMMut(nds: Pin<&mut NDS>) -> *mut u8;
-        pub unsafe fn MainRAMMaxSize(nds: Pin<&NDS>) -> u32;
-    
+        pub unsafe fn MainRAMMaxSize(nds: &NDS) -> u32;
+
         pub unsafe fn NDS_SetNDSCart(nds: Pin<&mut NDS>, cart: UniquePtr<CartCommon>);
 
         pub unsafe fn ParseROMWithSave(

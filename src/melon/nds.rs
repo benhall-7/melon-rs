@@ -1,6 +1,6 @@
-use std::{io::Write, pin::Pin};
+use std::{fs::File, io::Write, pin::Pin};
 
-use cxx::UniquePtr;
+use cxx::{CxxVector, UniquePtr};
 use tokio::sync::Mutex;
 
 use once_cell::sync::Lazy;
@@ -84,7 +84,13 @@ impl Nds {
 
     pub fn update_framebuffers(&self, dest: &mut [u8], bottom: bool) -> bool {
         assert_eq!(dest.len(), 256 * 192 * 4);
-        unsafe { sys::shims::Copy_Framebuffers(self.0, dest.as_mut_ptr(), bottom) }
+        unsafe {
+            sys::shims::Copy_Framebuffers(
+                self.0.as_ref().expect("Couldn't get ref to pin"),
+                dest.as_mut_ptr(),
+                bottom,
+            )
+        }
     }
 
     // pub fn set_render_settings(&mut self) {
@@ -100,41 +106,50 @@ impl Nds {
 
     pub fn read_audio_output(&mut self) -> Vec<i16> {
         let mut buffer = [0i16; 1024 * 2];
-        let samples_read = unsafe { sys::spu::ReadOutput(&mut buffer as *mut i16, 1024) };
+        let samples_read =
+            unsafe { sys::shims::SPU_ReadOutput(self.0.pin_mut(), &mut buffer as *mut i16, 1024) };
         buffer[0..2 * samples_read as usize].into()
     }
 
     pub fn read_savestate(&mut self, file: String) -> bool {
         let contents = std::fs::read(file).expect("Couldn't open savestate file");
-        unsafe { sys::shims::ReadSavestate(self.0.pin_mut(), contents.as_ptr(), contents.len() as i32) }
+        unsafe {
+            sys::shims::ReadSavestate(self.0.pin_mut(), contents.as_ptr(), contents.len() as i32)
+        }
     }
 
     pub fn write_savestate(&mut self, file: String) -> bool {
-        let handle = std::fs::File::create(file).expect("Couldn't create/open savestate file");
-        let store = move |source: *const u8, len: i32| {
-            let slice = unsafe { std::slice::from_raw_parts(source, len as usize) };
-            handle
-                .write_all(slice)
-                .expect("Couldn't write file contents for savestate");
-        };
-        unsafe { sys::shims::WriteSavestate(self.0.pin_mut(), store) }
+        let mut handle = std::fs::File::create(file).expect("Couldn't create/open savestate file");
+        let data: *mut CxxVector<u8> = std::ptr::null_mut();
+        unsafe {
+            let result = sys::shims::WriteSavestate(self.0.pin_mut(), data);
+            if !data.is_null() {
+                handle
+                    .write_all((*data).as_slice())
+                    .expect("Couldn't write contents of savestate");
+            }
+            result
+        }
     }
 
     pub fn current_frame(&self) -> u32 {
-        unsafe { sys::shims::CurrentFrame(self.0) }
+        unsafe { sys::shims::CurrentFrame(self.0.as_ref().expect("Couldn't get ref to pin")) }
     }
 
     pub fn main_ram(&self) -> &[u8] {
         unsafe {
             let max_size = sys::shims::MainRAMMaxSize(&self.0) as usize;
-            std::slice::from_raw_parts(sys::shims::MainRAM(self.0), max_size)
+            std::slice::from_raw_parts(
+                sys::shims::MainRAM(self.0.as_ref().expect("Couldn't get ref to pin")),
+                max_size,
+            )
         }
     }
 
     pub fn main_ram_mut(&mut self) -> &mut [u8] {
         unsafe {
             let max_size = sys::shims::MainRAMMaxSize(&self.0) as usize;
-            std::slice::from_raw_parts_mut(sys::shims::MainRAM(self.0.pin_mut()), max_size)
+            std::slice::from_raw_parts_mut(sys::shims::MainRAMMut(self.0.pin_mut()), max_size)
         }
     }
 
@@ -142,3 +157,5 @@ impl Nds {
     //     sys::gpu::InitRenderer(0);
     // }
 }
+
+unsafe impl Send for Nds {}
