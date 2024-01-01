@@ -22,6 +22,7 @@ use window::{draw, get_draw_data};
 use winit::event::ModifiersState;
 
 use crate::args::Commands;
+use crate::config::DLDISDPATH;
 use crate::melon::kssu::addresses::ACTOR_COLLECTION;
 use crate::melon::kssu::{Actor, ActorCollection};
 use crate::melon::nds::audio::NdsAudio;
@@ -379,10 +380,9 @@ async fn main() {
 }
 
 async fn game(emu: Arc<Mutex<Emu>>, cart: Vec<u8>, save: Option<Vec<u8>>) {
-    let mut ds_lock = melon::nds::INSTANCE.lock().await;
-    let mut ds = ds_lock.take().unwrap();
+    let mut ds = melon::nds::Nds::new();
 
-    ds.load_cart(&cart, save.as_deref());
+    ds.set_nds_cart(&cart, save.as_deref());
 
     println!("Needs direct boot? {:?}", ds.needs_direct_boot());
 
@@ -520,7 +520,7 @@ async fn game(emu: Arc<Mutex<Emu>>, cart: Vec<u8>, save: Option<Vec<u8>>) {
             .unwrap();
     }
 
-    ds.stop();
+    // ds.stop();
 }
 
 fn check_memory(ram: &[u8]) {

@@ -4,7 +4,8 @@
 #include "Platform.h"
 #include "Util.cpp"
 
-#include "melon-rs/src/melon/sys.rs.h"
+#include "melon-rs/src/melon/sys/platform.rs.h"
+#include "melon-rs/src/melon/sys/glue.rs.h"
 
 using namespace melonDS;
 
