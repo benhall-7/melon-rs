@@ -1,3 +1,5 @@
+#pragma once
+
 // https://stackoverflow.com/a/617559/11423867
 
 #include <time.h>

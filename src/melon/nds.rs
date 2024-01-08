@@ -10,11 +10,11 @@ use super::sys;
 pub mod audio;
 pub mod input;
 
-pub struct Nds(UniquePtr<sys::nds::NDS>);
+pub struct Nds(UniquePtr<sys::NDS>);
 
 impl Nds {
     pub fn new() -> Self {
-        let mut nds = Nds(sys::shims::New_NDS());
+        let mut nds = Nds(sys::New_NDS());
 
         // nds.init_renderer();
         // nds.set_render_settings();
@@ -46,14 +46,14 @@ impl Nds {
 
     pub fn set_nds_cart(&mut self, rom: &[u8], save: Option<&[u8]>) {
         unsafe {
-            let cart = sys::shims::ParseROMWithSave(
+            let cart = sys::ParseROMWithSave(
                 rom.as_ptr(),
                 rom.len() as u32,
                 save.map(|data| data.as_ptr())
                     .unwrap_or_else(std::ptr::null::<u8>),
                 save.map(|data| data.len() as u32).unwrap_or_default(),
             );
-            sys::shims::NDS_SetNDSCart(self.0.pin_mut(), cart);
+            sys::NDS_SetNDSCart(self.0.pin_mut(), cart);
         }
     }
 
@@ -85,7 +85,7 @@ impl Nds {
     pub fn update_framebuffers(&self, dest: &mut [u8], bottom: bool) -> bool {
         assert_eq!(dest.len(), 256 * 192 * 4);
         unsafe {
-            sys::shims::Copy_Framebuffers(
+            sys::Copy_Framebuffers(
                 self.0.as_ref().expect("Couldn't get ref to pin"),
                 dest.as_mut_ptr(),
                 bottom,
@@ -107,23 +107,21 @@ impl Nds {
     pub fn read_audio_output(&mut self) -> Vec<i16> {
         let mut buffer = [0i16; 1024 * 2];
         let samples_read =
-            unsafe { sys::shims::SPU_ReadOutput(self.0.pin_mut(), &mut buffer as *mut i16, 1024) };
+            unsafe { sys::SPU_ReadOutput(self.0.pin_mut(), &mut buffer as *mut i16, 1024) };
         buffer[0..2 * samples_read as usize].into()
     }
 
     pub fn read_savestate(&mut self, file: String) -> bool {
         let contents = std::fs::read(file).expect("Couldn't open savestate file");
-        unsafe {
-            sys::shims::ReadSavestate(self.0.pin_mut(), contents.as_ptr(), contents.len() as i32)
-        }
+        unsafe { sys::ReadSavestate(self.0.pin_mut(), contents.as_ptr(), contents.len() as i32) }
     }
 
     pub fn write_savestate(&mut self, file: String) -> bool {
         let mut handle = std::fs::File::create(file).expect("Couldn't create/open savestate file");
-        let data: *mut CxxVector<u8> = std::ptr::null_mut();
+        let mut data: UniquePtr<CxxVector<u8>> = CxxVector::new();
         unsafe {
-            let result = sys::shims::WriteSavestate(self.0.pin_mut(), data);
-            if !data.is_null() {
+            let result = sys::WriteSavestate(self.0.pin_mut(), &mut data);
+            if result {
                 handle
                     .write_all((*data).as_slice())
                     .expect("Couldn't write contents of savestate");
@@ -133,14 +131,14 @@ impl Nds {
     }
 
     pub fn current_frame(&self) -> u32 {
-        unsafe { sys::shims::CurrentFrame(self.0.as_ref().expect("Couldn't get ref to pin")) }
+        unsafe { sys::CurrentFrame(self.0.as_ref().expect("Couldn't get ref to pin")) }
     }
 
     pub fn main_ram(&self) -> &[u8] {
         unsafe {
-            let max_size = sys::shims::MainRAMMaxSize(&self.0) as usize;
+            let max_size = sys::MainRAMMaxSize(&self.0) as usize;
             std::slice::from_raw_parts(
-                sys::shims::MainRAM(self.0.as_ref().expect("Couldn't get ref to pin")),
+                sys::MainRAM(self.0.as_ref().expect("Couldn't get ref to pin")),
                 max_size,
             )
         }
@@ -148,8 +146,8 @@ impl Nds {
 
     pub fn main_ram_mut(&mut self) -> &mut [u8] {
         unsafe {
-            let max_size = sys::shims::MainRAMMaxSize(&self.0) as usize;
-            std::slice::from_raw_parts_mut(sys::shims::MainRAMMut(self.0.pin_mut()), max_size)
+            let max_size = sys::MainRAMMaxSize(&self.0) as usize;
+            std::slice::from_raw_parts_mut(sys::MainRAMMut(self.0.pin_mut()), max_size)
         }
     }
 

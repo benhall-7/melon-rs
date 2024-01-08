@@ -22,28 +22,16 @@ fn main() {
         )
         .build();
 
-    let bridge_files = [
-        "glue",
-        "nds_cart",
-        "nds",
-        "platform",
-        "replacements",
-        "shims",
-    ];
-    cxx_build::bridges(
-        bridge_files
-            .iter()
-            .map(|file| format!("src/melon/sys/{file}.rs")),
-    )
-    .include("melonDS/src")
-    .include("src/melon/cpp")
-    .file("src/melon/cpp/Platform.cpp")
-    .file("src/melon/cpp/Shims.cpp")
-    .file("src/melon/cpp/Util.cpp")
-    .include("melonDS/src/frontend/glad")
-    .file("melonDS/src/frontend/glad/glad.c")
-    .flag_if_supported("-std=c++17")
-    .compile("melon-bindings"); // arbitrary library name, pick anything
+    cxx_build::bridge("src/melon/sys.rs")
+        .include("melonDS/src")
+        .include("src/melon/cpp")
+        .file("src/melon/cpp/Platform.cpp")
+        .file("src/melon/cpp/Shims.cpp")
+        .file("src/melon/cpp/Util.cpp")
+        .include("melonDS/src/frontend/glad")
+        .file("melonDS/src/frontend/glad/glad.c")
+        .flag_if_supported("-std=c++17")
+        .compile("melon-bindings"); // arbitrary library name, pick anything
 
     // link it!
     println!(
