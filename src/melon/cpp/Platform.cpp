@@ -20,30 +20,6 @@ namespace melonDS::Platform
         return std::string(PlatformImpl::InstanceFileSuffix());
     }
 
-    // FILE *OpenFile(std::string path, )
-    // {
-    //     FILE *f;
-    //     // check if it exists, kind of???
-    //     // if we were to use write mode, apparently this would automatically
-    //     // create a file. So to just check, use read only mode.
-    //     f = fopen(path.c_str(), "r");
-    //     if (!f && mustexist)
-    //     {
-    //         return nullptr;
-    //     }
-    //     fclose(f);
-
-    //     f = fopen(path.c_str(), mode.c_str());
-    //     return f;
-    // }
-
-    // FILE *OpenLocalFile(std::string path, std::string mode)
-    // {
-    //     auto localPathRust = Rust::LocalizePath(path);
-    //     std::string localPath(localPathRust);
-    //     return OpenFile(localPath, mode, mode[0] != 'w');
-    // }
-
     int InstanceID()
     {
         return PlatformImpl::InstanceID();
@@ -109,6 +85,109 @@ namespace melonDS::Platform
     bool Mutex_TryLock(Mutex *mutex)
     {
         return PlatformImpl::Mutex_TryLock(mutex);
+    }
+
+    FileHandle *OpenFile(const std::string &path, FileMode mode)
+    {
+        return PlatformImpl::OpenFile(path, mode);
+    }
+    FileHandle *OpenLocalFile(const std::string &path, FileMode mode)
+    {
+        return PlatformImpl::OpenLocalFile(path, mode);
+    }
+
+    bool FileExists(const std::string &name)
+    {
+        return PlatformImpl::FileExists(name);
+    }
+    bool LocalFileExists(const std::string &name)
+    {
+        return PlatformImpl::LocalFileExists(name);
+    }
+
+    bool CloseFile(FileHandle *file)
+    {
+        return PlatformImpl::CloseFile(file);
+    }
+
+    bool IsEndOfFile(FileHandle *file)
+    {
+        return PlatformImpl::IsEndOfFile(file);
+    }
+
+    bool FileReadLine(char *str, int count, FileHandle *file)
+    {
+        return PlatformImpl::FileReadLine((u8 *)str, count, file);
+    }
+
+    bool FileSeek(FileHandle *file, s64 offset, FileSeekOrigin origin)
+    {
+        return PlatformImpl::FileSeek(file, offset, origin);
+    }
+
+    void FileRewind(FileHandle *file)
+    {
+        return PlatformImpl::FileRewind(file);
+    }
+
+    u64 FileRead(void *data, u64 size, u64 count, FileHandle *file)
+    {
+        return PlatformImpl::FileRead((u8 *)data, size, count, file);
+    }
+
+    bool FileFlush(FileHandle *file)
+    {
+        return PlatformImpl::FileFlush(file);
+    }
+
+    u64 FileWrite(const void *data, u64 size, u64 count, FileHandle *file)
+    {
+        return PlatformImpl::FileWrite((u8 *)data, size, count, file);
+    }
+
+    u64 FileWriteFormatted(FileHandle *file, const char *fmt, ...)
+    {
+        if (fmt == nullptr)
+            return 0;
+
+        va_list args;
+        va_start(args, fmt);
+        // get required length
+        int buf_len = std::snprintf(nullptr, 0, fmt, args);
+        if (buf_len <= 0)
+        {
+            va_end(args);
+            return 0;
+        }
+        auto buf = std::make_unique<char[]>(buf_len);
+        // actually write into buffer
+        snprintf(buf.get(), buf_len, fmt, args);
+        va_end(args);
+        return FileWrite((void *)buf.get(), 1, buf_len, file);
+    }
+
+    u64 FileLength(FileHandle *file)
+    {
+        return PlatformImpl::FileLength(file);
+    }
+
+    void SignalStop(StopReason reason) {
+        // no op
+    }
+    void Log(LogLevel level, const char* fmt, ...) {
+        if (fmt == nullptr)
+            return;
+
+        va_list args;
+        va_start(args, fmt);
+        vprintf(fmt, args);
+        va_end(args);
+    }
+    void WriteFirmware(const Firmware& firmware, u32 writeoffset, u32 writelen) {
+        // no op
+    }
+    void WriteDateTime(int year, int month, int day, int hour, int minute, int second) {
+        // no op
     }
 
     void WriteNDSSave(const u8 *savedata, u32 savelen, u32 writeoffset, u32 writelen)

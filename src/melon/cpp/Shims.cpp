@@ -42,7 +42,7 @@ namespace Shims
         return nds.DoSavestate(&state);
     }
 
-    bool WriteSavestate(NDS &nds, std::vector<u8> *data)
+    std::unique_ptr<std::vector<u8>> WriteSavestate(NDS &nds)
     {
         Savestate state;
         if (nds.DoSavestate(&state))
@@ -50,11 +50,9 @@ namespace Shims
             auto buffer = (u8 *)state.Buffer();
             auto len = state.Length();
 
-            *data = std::vector<u8>(buffer, buffer + len);
-            
-            return true;
+            return std::make_unique<std::vector<u8>>(buffer, buffer + len);
         }
-        return false;
+        return std::make_unique<std::vector<u8>>();
     }
 
     u32 CurrentFrame(const NDS &nds)

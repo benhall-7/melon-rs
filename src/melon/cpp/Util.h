@@ -12,7 +12,8 @@ using namespace melonDS;
 
 namespace Util
 {
-    enum struct MelonFileMode : u8 {
+    enum struct MelonFileMode : u8
+    {
         Read = Platform::FileMode::Read,
         Write = Platform::FileMode::Write,
         Preserve = Platform::FileMode::Preserve,

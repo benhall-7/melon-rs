@@ -2,7 +2,8 @@
 #![allow(clippy::missing_safety_doc)]
 
 use std::fs::{File, OpenOptions};
-use std::io::{Cursor, Read, Seek, SeekFrom, Write};
+use std::io::{BufRead, Cursor, Read, Seek, SeekFrom, Write};
+use std::path::Path;
 use std::ptr::drop_in_place;
 use std::slice;
 use std::sync::{Mutex, MutexGuard, TryLockError};
@@ -22,6 +23,15 @@ mod sys {
         Preserve = 0b00_01_00,
         NoCreate = 0b00_10_00,
         Text = 0b01_00_00,
+    }
+
+    #[namespace = "melonDS::Platform"]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[repr(u32)]
+    enum FileSeekOrigin {
+        Start,
+        Current,
+        End,
     }
 
     // Replacement stuff
@@ -47,10 +57,12 @@ mod sys {
 
     // Platform stuff
 
-    // #[namespace = "melonDS::Platform"]
-    // extern "C++" {
-    //     include!("Platform.h");
-    // }
+    #[namespace = "melonDS::Platform"]
+    extern "C++" {
+        include!("Platform.h");
+
+        type FileSeekOrigin;
+    }
 
     // interface provided to Platform.cpp, in order to implement Platform.h
     #[namespace = "PlatformImpl"]
@@ -171,38 +183,57 @@ mod sys {
         #[cxx_name = "OpenLocalFile"]
         fn open_local_file(path: &CxxString, mode: u8) -> *mut NdsFileHandle;
 
-        #[cxx_name = "FileRead"]
-        fn file_read();
-        #[cxx_name = "FileReadLine"]
-        fn file_read_line();
-        #[cxx_name = "FileSeek"]
-        fn file_seek();
-        #[cxx_name = "FileWrite"]
-        fn file_write();
-        #[cxx_name = "FileWriteFormatted"]
-        fn file_write_formatted();
+        #[cxx_name = "FileExists"]
+        fn file_exists(name: &CxxString) -> bool;
+        #[cxx_name = "LocalFileExists"]
+        fn local_file_exists(name: &CxxString) -> bool;
 
         #[cxx_name = "FileLength"]
         unsafe fn file_length(handle: *mut NdsFileHandle) -> u64;
         #[cxx_name = "IsEndOfFile"]
-        // bool IsEndOfFile(FileHandle* file);
         unsafe fn is_end_of_file(handle: *mut NdsFileHandle) -> bool;
-        #[cxx_name = "LocalFileExists"]
-        fn local_file_exists();
+
+        #[cxx_name = "FileRead"]
+        unsafe fn file_read(
+            data: *mut u8,
+            size: u64,
+            count: u64,
+            handle: *mut NdsFileHandle,
+        ) -> u64;
+        #[cxx_name = "FileReadLine"]
+        unsafe fn file_read_line(str: *mut u8, count: i32, handle: *mut NdsFileHandle) -> bool;
+        #[cxx_name = "FileSeek"]
+        unsafe fn file_seek(
+            handle: *mut NdsFileHandle,
+            offset: i64,
+            origin: FileSeekOrigin,
+        ) -> bool;
+        #[cxx_name = "FileRewind"]
+        unsafe fn file_rewind(handle: *mut NdsFileHandle);
+        #[cxx_name = "FileWrite"]
+        unsafe fn file_write(
+            src: *mut u8,
+            size: u64,
+            count: u64,
+            handle: *mut NdsFileHandle,
+        ) -> u64;
+
+        #[cxx_name = "FileFlush"]
+        unsafe fn file_flush(handle: *mut NdsFileHandle) -> bool;
         #[cxx_name = "CloseFile"]
         unsafe fn close_file(handle: *mut NdsFileHandle) -> bool;
-        #[cxx_name = "ExportFile"]
-        fn export_file();
+        // #[cxx_name = "ExportFile"]
+        // fn export_file();
 
         // Misc
-        #[cxx_name = "SignalStop"]
-        fn signal_stop();
-        #[cxx_name = "WriteDateTime"]
-        fn write_date_time();
-        #[cxx_name = "WriteFirmware"]
-        fn write_firmware();
-        #[cxx_name = "Log"]
-        fn log();
+        // #[cxx_name = "SignalStop"]
+        // fn signal_stop();
+        // #[cxx_name = "WriteDateTime"]
+        // fn write_date_time();
+        // #[cxx_name = "WriteFirmware"]
+        // fn write_firmware();
+        // #[cxx_name = "Log"]
+        // fn log();
     }
 
     // NDSCart stuff
@@ -252,7 +283,7 @@ mod sys {
         pub unsafe fn SPU_ReadOutput(nds: Pin<&mut NDS>, data: *mut i16, samples: i32) -> i32;
 
         pub unsafe fn ReadSavestate(nds: Pin<&mut NDS>, contents: *const u8, len: i32) -> bool;
-        pub unsafe fn WriteSavestate(nds: Pin<&mut NDS>, data: *mut CxxVector<u8>) -> bool;
+        pub unsafe fn WriteSavestate(nds: Pin<&mut NDS>) -> UniquePtr<CxxVector<u8>>;
 
         pub unsafe fn CurrentFrame(nds: &NDS) -> u32;
 
@@ -455,14 +486,14 @@ impl NdsFileHandle {
         }
     }
 
-    pub fn length(&self) -> u64 {
+    pub fn length(&mut self) -> u64 {
         let current = self.cursor.position();
         let end = self.cursor.seek(SeekFrom::End(0)).unwrap();
         self.cursor.set_position(current);
         end
     }
 
-    pub fn is_end(&self) -> bool {
+    pub fn is_end(&mut self) -> bool {
         let pos = self.cursor.position();
         pos == self.length()
     }
@@ -484,35 +515,100 @@ fn open_file(path: &CxxString, mode: u8) -> *mut NdsFileHandle {
 }
 
 fn open_local_file(path: &CxxString, mode: u8) -> *mut NdsFileHandle {
-    let local_path = localize_pathbuf(path.to_string()).to_string_lossy();
+    let path_string = localize_pathbuf(path.to_string());
+    let local_path = path_string.to_string_lossy();
     open_file_rust(local_path.into_owned(), mode)
 }
 
-unsafe fn file_read(data: *mut u8, size: u64, count: u64, handle: *mut NdsFileHandle) {
-    // let src = 
-    // data.copy_from(, count)
+fn file_exists(name: &CxxString) -> bool {
+    Path::new(&name.to_string()).exists()
 }
-fn file_read_line() {}
-fn file_seek() {}
-fn file_write() {}
-fn file_write_formatted() {}
+fn local_file_exists(name: &CxxString) -> bool {
+    localize_pathbuf(name.to_string()).exists()
+}
+
 unsafe fn file_length(handle: *mut NdsFileHandle) -> u64 {
     (*handle).length()
 }
+
 unsafe fn is_end_of_file(handle: *mut NdsFileHandle) -> bool {
     (*handle).is_end()
 }
-fn local_file_exists() {}
+
+unsafe fn file_read(dest: *mut u8, size: u64, count: u64, handle: *mut NdsFileHandle) -> u64 {
+    let mut bytes_read = vec![];
+    let cursor = &mut (*handle).cursor;
+    let result = cursor
+        .take(size.saturating_mul(count))
+        .read_to_end(&mut bytes_read);
+    match result {
+        Ok(num_read) => {
+            bytes_read.as_mut_ptr().copy_to(dest, num_read);
+            num_read as u64
+        }
+        Err(err) => {
+            println!("{:?}", err);
+            0
+        }
+    }
+}
+
+unsafe fn file_read_line(dest: *mut u8, count: i32, handle: *mut NdsFileHandle) -> bool {
+    let mut bytes_read = vec![];
+    let cursor = &mut (*handle).cursor;
+    let result = cursor
+        .take(count as u64)
+        .read_until(b'\n', &mut bytes_read);
+    match result {
+        Ok(num_read) => {
+            bytes_read.as_mut_ptr().copy_to(dest, num_read);
+            num_read > 0
+        }
+        Err(err) => {
+            println!("{:?}", err);
+            false
+        }
+    }
+}
+
+unsafe fn file_seek(handle: *mut NdsFileHandle, offset: i64, origin: FileSeekOrigin) -> bool {
+    let seek_from = match origin {
+        FileSeekOrigin::Current => SeekFrom::Current(offset),
+        FileSeekOrigin::End => SeekFrom::End(offset),
+        FileSeekOrigin::Start => SeekFrom::Start(offset as u64),
+        _ => return false,
+    };
+    (*handle).cursor.seek(seek_from).is_ok()
+}
+
+unsafe fn file_rewind(handle: *mut NdsFileHandle) {
+    if let Err(err) = (*handle).cursor.seek(SeekFrom::Start(0)) {
+        println!("{:?}", err);
+    }
+}
+
+unsafe fn file_write(src: *mut u8, size: u64, count: u64, handle: *mut NdsFileHandle) -> u64 {
+    let to_write = slice::from_raw_parts(src, size.saturating_mul(count) as usize);
+    (*handle).cursor.write(to_write).unwrap_or_default() as u64
+}
+
+unsafe fn file_flush(handle: *mut NdsFileHandle) -> bool {
+    let nds_file = &mut (*handle);
+    let src = nds_file.cursor.get_ref();
+    nds_file.handle.write_all(&src).is_ok()
+}
+
 unsafe fn close_file(handle: *mut NdsFileHandle) -> bool {
     drop_in_place(handle);
     true
 }
-fn export_file() {}
 
-fn signal_stop() {}
-fn write_date_time() {}
-fn write_firmware() {}
-fn log() {}
+// fn export_file() {}
+
+// fn signal_stop() {}
+// fn write_date_time() {}
+// fn write_firmware() {}
+// fn log() {}
 
 fn lan_init() -> bool {
     // TODO: provide an event subscription

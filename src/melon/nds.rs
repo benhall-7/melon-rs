@@ -118,15 +118,17 @@ impl Nds {
 
     pub fn write_savestate(&mut self, file: String) -> bool {
         let mut handle = std::fs::File::create(file).expect("Couldn't create/open savestate file");
-        let mut data: UniquePtr<CxxVector<u8>> = CxxVector::new();
+        let data: UniquePtr<CxxVector<u8>> = CxxVector::new();
         unsafe {
-            let result = sys::WriteSavestate(self.0.pin_mut(), &mut data);
-            if result {
+            let result = sys::WriteSavestate(self.0.pin_mut());
+            if result.len() > 0 {
                 handle
                     .write_all((*data).as_slice())
                     .expect("Couldn't write contents of savestate");
+                true
+            } else {
+                false
             }
-            result
         }
     }
 
