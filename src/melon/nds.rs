@@ -77,7 +77,7 @@ impl Nds {
         self.0.pin_mut().Reset();
     }
 
-    // Emulates a frame. Returns number of scanlines from GPU module
+    /// Emulates a frame. Returns number of scanlines from GPU module
     pub fn run_frame(&mut self) -> u32 {
         self.0.pin_mut().RunFrame()
     }

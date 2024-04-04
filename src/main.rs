@@ -160,7 +160,6 @@ async fn main() {
         .map(|yml| serde_yaml::from_str::<ConfigFile>(&yml).unwrap())
         .map(Into::into)
         .unwrap_or_default();
-
     let game_name = args.game.as_ref().or(config.default_game_path.as_ref()).map(Clone::clone).expect("No game was selected in the command arguments, and no default game was included in the config");
     let mut save_name = None;
     let mut replay: Option<(Replay, ReplayState)> = None;
