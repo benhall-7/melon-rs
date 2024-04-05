@@ -77,7 +77,8 @@ namespace Shims
         return nds.MainRAMMaxSize;
     }
 
-    void NDS_SetupDirectBoot(NDS &nds, rust::string romname) {
+    void NDS_SetupDirectBoot(NDS &nds, rust::string romname)
+    {
         nds.SetupDirectBoot(std::string(romname));
     }
 
@@ -106,5 +107,10 @@ namespace Shims
 
             return NDSCart::ParseROM(romdata, romlen, std::move(cart_args));
         }
+    }
+
+    void RTC_SetDateTime(NDS &nds, int year, int month, int day, int hour, int minute, int second)
+    {
+        nds.RTC.SetDateTime(year, month, day, hour, minute, second);
     }
 }

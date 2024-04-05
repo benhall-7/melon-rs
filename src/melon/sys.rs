@@ -11,7 +11,6 @@ use std::thread::{spawn, JoinHandle};
 
 use crate::melon::save::write_save;
 use crate::utils::localize_pathbuf;
-use crate::GAME_TIME;
 
 #[cxx::bridge]
 mod sys {
@@ -32,14 +31,6 @@ mod sys {
         Start,
         Current,
         End,
-    }
-
-    // Replacement stuff
-
-    #[namespace = "Replacements"]
-    extern "Rust" {
-        #[cxx_name = "EmulatedTime"]
-        unsafe fn emulated_time(seconds: *mut i32) -> i32;
     }
 
     // Util stuff
@@ -300,6 +291,16 @@ mod sys {
             savedata: *const u8,
             savelen: u32,
         ) -> UniquePtr<CartCommon>;
+
+        pub fn RTC_SetDateTime(
+            nds: Pin<&mut NDS>,
+            year: i32,
+            month: i32,
+            day: i32,
+            hour: i32,
+            minute: i32,
+            second: i32,
+        );
     }
 
     // Implementations on types
@@ -657,16 +658,6 @@ unsafe fn write_nds_save(savedata: *const u8, savelen: u32, writeoffset: u32, wr
         writeoffset as usize,
         writelen as usize,
     );
-}
-
-unsafe fn emulated_time(seconds: *mut i32) -> i32 {
-    let now = GAME_TIME.lock().unwrap().timestamp() as i32;
-    if !seconds.is_null() {
-        *seconds = now;
-        0
-    } else {
-        now
-    }
 }
 
 use cxx::CxxString;

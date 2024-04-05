@@ -1,5 +1,6 @@
 use std::io::Write;
 
+use chrono::{DateTime, Datelike, Timelike, Utc};
 use cxx::{CxxVector, UniquePtr};
 
 use super::sys;
@@ -52,6 +53,18 @@ impl Nds {
             );
             sys::NDS_SetNDSCart(self.0.pin_mut(), cart);
         }
+    }
+
+    pub fn set_time(&mut self, time: DateTime<Utc>) {
+        sys::RTC_SetDateTime(
+            self.0.pin_mut(),
+            time.year() as i32,
+            time.month() as i32,
+            time.day() as i32,
+            time.hour() as i32,
+            time.minute() as i32,
+            time.second() as i32,
+        )
     }
 
     pub fn needs_direct_boot(&self) -> bool {

@@ -40,7 +40,6 @@ pub enum ReplaySource {
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct SavestateContext {
     pub replay: Option<SavestateContextReplay>,
-    pub timestamp: DateTime<Utc>,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]

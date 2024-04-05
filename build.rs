@@ -8,7 +8,6 @@ fn main() {
     println!("cargo:rerun-if-changed=src/melon/cpp/");
 
     let directory = current_dir().unwrap();
-    let replacements = directory.join("src/melon/cpp/Replacements.h");
 
     // build melonDS
     let dst = Config::new("melonDS")
@@ -16,12 +15,6 @@ fn main() {
         .define("ENABLE_JIT", "OFF")
         .define("ENABLE_GDBSTUB", "OFF")
         .build_target("all")
-        .define("INTERCEPT", "ON")
-        // this lets us replace the in-game time invocation with an emulated version
-        .define(
-            "CMAKE_CXX_FLAGS",
-            format!("--include {}", replacements.display()),
-        )
         .build();
 
     cxx_build::bridge("src/melon/sys.rs")

@@ -30,4 +30,8 @@ namespace Shims
     // CartCommon
 
     std::unique_ptr<NDSCart::CartCommon> ParseROMWithSave(const u8 *romdata, u32 romlen, const u8 *savedata, u32 savelen);
+
+    // RTC
+
+    void RTC_SetDateTime(NDS &nds, int year, int month, int day, int hour, int minute, int second);
 }

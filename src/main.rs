@@ -22,7 +22,6 @@ use window::{draw, get_draw_data};
 use winit::event::ModifiersState;
 
 use crate::args::Commands;
-use crate::config::DLDISDPATH;
 use crate::melon::kssu::addresses::ACTOR_COLLECTION;
 use crate::melon::kssu::{Actor, ActorCollection};
 use crate::melon::nds::audio::NdsAudio;
@@ -37,8 +36,6 @@ pub mod melon;
 pub mod replay;
 pub mod utils;
 pub mod window;
-
-pub static GAME_TIME: Lazy<Arc<Mutex<DateTime<Utc>>>> = Lazy::new(Default::default);
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum EmuState {
@@ -63,7 +60,6 @@ pub struct Emu {
     pub nds_input: NdsKeyMask,
     pub key_modifiers: ModifiersState,
     pub state: EmuState,
-    pub time: DateTime<Utc>,
     pub savestate_write_request: Option<String>,
     pub savestate_read_request: Option<String>,
     pub replay: Option<(Replay, ReplayState)>,
@@ -72,14 +68,13 @@ pub struct Emu {
 }
 
 impl Emu {
-    pub fn new(time: DateTime<Utc>, audio: Sink, replay: Option<(Replay, ReplayState)>) -> Self {
+    pub fn new(audio: Sink, replay: Option<(Replay, ReplayState)>) -> Self {
         Emu {
             top_frame: [0; 256 * 192 * 4],
             bottom_frame: [0; 256 * 192 * 4],
             audio,
             nds_input: NdsKeyMask::empty(),
             key_modifiers: ModifiersState::empty(),
-            time,
             state: EmuState::Pause,
             savestate_read_request: None,
             savestate_write_request: None,
@@ -112,7 +107,6 @@ impl Emu {
         match (&mut self.replay, context.replay) {
             (Some(replay), Some(replay_context)) => {
                 if replay_context.name == replay.0.name {
-                    self.time = context.timestamp;
                     replay.0.inputs = replay_context.inputs;
                     assert!(nds.read_savestate(localized));
                 } else {
@@ -122,7 +116,6 @@ impl Emu {
             (Some(_), None) => println!("The savestate couldn't be loaded. There is a replay running, but the savestate doesn't belong to one"),
             (None, Some(_)) => println!("The savestate couldn't be loaded. There is no replay running, and the savestate belongs to a replay"),
             (None, None) => {
-                self.time = context.timestamp;
                 assert!(nds.read_savestate(localized));
             },
         }
@@ -136,7 +129,6 @@ impl Emu {
         let context_path = PathBuf::from(raw).to_string_lossy().into_owned();
 
         let context = SavestateContext {
-            timestamp: self.time,
             replay: self.replay.as_ref().map(|replay| SavestateContextReplay {
                 name: replay.0.name.clone(),
                 inputs: replay.0.inputs.clone(),
@@ -235,11 +227,11 @@ async fn main() {
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
     let audio = Sink::try_new(&stream_handle).unwrap();
 
-    let emu = Arc::new(Mutex::new(Emu::new(start_time, audio, replay)));
+    let emu = Arc::new(Mutex::new(Emu::new(audio, replay)));
 
     let game_emu = emu.clone();
     let mut game_thread = Some(tokio::spawn(async move {
-        game(game_emu, cart, save).await;
+        game(game_emu, cart, save, start_time).await;
     }));
 
     let events_loop = glutin::event_loop::EventLoop::new();
@@ -378,10 +370,11 @@ async fn main() {
     });
 }
 
-async fn game(emu: Arc<Mutex<Emu>>, cart: Vec<u8>, save: Option<Vec<u8>>) {
+async fn game(emu: Arc<Mutex<Emu>>, cart: Vec<u8>, save: Option<Vec<u8>>, time: DateTime<Utc>) {
     let mut ds = melon::nds::Nds::new();
 
     ds.set_nds_cart(&cart, save.as_deref());
+    ds.set_time(time);
 
     println!("Needs direct boot? {:?}", ds.needs_direct_boot());
 
@@ -445,10 +438,6 @@ async fn game(emu: Arc<Mutex<Emu>>, cart: Vec<u8>, save: Option<Vec<u8>>) {
                     }
                 };
 
-                // updates static variable for emulator function impl
-                // what's a better strategy? maybe the subscriptions?
-                // *(GAME_TIME.lock().unwrap()) = emu.lock().unwrap().time;
-
                 ds.set_key_mask(nds_key);
                 ds.run_frame();
 
@@ -459,10 +448,6 @@ async fn game(emu: Arc<Mutex<Emu>>, cart: Vec<u8>, save: Option<Vec<u8>>) {
                 audio_queue.lock().unwrap().extend(output);
 
                 println!("Frame {}", ds.current_frame());
-                // println!("Time is now {}", GAME_TIME.lock().unwrap());
-
-                // updates emu time
-                emu.lock().unwrap().time += Duration::nanoseconds(16_666_667);
 
                 emu.lock()
                     .map(|mut mutex| {
