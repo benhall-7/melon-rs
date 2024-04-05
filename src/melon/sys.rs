@@ -266,7 +266,7 @@ mod sys {
         // fn SetLidClosed(closed: bool);
 
         fn NeedsDirectBoot(&self) -> bool;
-        fn SetupDirectBoot(self: Pin<&mut NDS>);
+        // fn SetupDirectBoot(self: Pin<&mut NDS>);
 
         fn RunFrame(self: Pin<&mut NDS>) -> u32;
     }
@@ -291,6 +291,7 @@ mod sys {
         pub unsafe fn MainRAMMut(nds: Pin<&mut NDS>) -> *mut u8;
         pub unsafe fn MainRAMMaxSize(nds: &NDS) -> u32;
 
+        pub unsafe fn NDS_SetupDirectBoot(nds: Pin<&mut NDS>, romname: String);
         pub unsafe fn NDS_SetNDSCart(nds: Pin<&mut NDS>, cart: UniquePtr<CartCommon>);
 
         pub unsafe fn ParseROMWithSave(
@@ -556,9 +557,7 @@ unsafe fn file_read(dest: *mut u8, size: u64, count: u64, handle: *mut NdsFileHa
 unsafe fn file_read_line(dest: *mut u8, count: i32, handle: *mut NdsFileHandle) -> bool {
     let mut bytes_read = vec![];
     let cursor = &mut (*handle).cursor;
-    let result = cursor
-        .take(count as u64)
-        .read_until(b'\n', &mut bytes_read);
+    let result = cursor.take(count as u64).read_until(b'\n', &mut bytes_read);
     match result {
         Ok(num_read) => {
             bytes_read.as_mut_ptr().copy_to(dest, num_read);

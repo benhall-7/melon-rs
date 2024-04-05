@@ -13,7 +13,9 @@ namespace Shims
 {
     std::unique_ptr<NDS> New_NDS()
     {
-        return std::make_unique<NDS>();
+        auto nds = std::make_unique<NDS>();
+        NDS::Current = nds.get();
+        return nds;
     }
 
     bool Copy_Framebuffers(const NDS &nds, u8 *dest, bool index)
@@ -73,6 +75,10 @@ namespace Shims
     u32 MainRAMMaxSize(const NDS &nds)
     {
         return nds.MainRAMMaxSize;
+    }
+
+    void NDS_SetupDirectBoot(NDS &nds, rust::string romname) {
+        nds.SetupDirectBoot(std::string(romname));
     }
 
     void NDS_SetNDSCart(NDS &nds, std::unique_ptr<NDSCart::CartCommon> cart)

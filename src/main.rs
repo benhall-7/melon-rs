@@ -447,7 +447,7 @@ async fn game(emu: Arc<Mutex<Emu>>, cart: Vec<u8>, save: Option<Vec<u8>>) {
 
                 // updates static variable for emulator function impl
                 // what's a better strategy? maybe the subscriptions?
-                *(GAME_TIME.lock().unwrap()) = emu.lock().unwrap().time;
+                // *(GAME_TIME.lock().unwrap()) = emu.lock().unwrap().time;
 
                 ds.set_key_mask(nds_key);
                 ds.run_frame();
@@ -459,7 +459,7 @@ async fn game(emu: Arc<Mutex<Emu>>, cart: Vec<u8>, save: Option<Vec<u8>>) {
                 audio_queue.lock().unwrap().extend(output);
 
                 println!("Frame {}", ds.current_frame());
-                println!("Time is now {}", GAME_TIME.lock().unwrap());
+                // println!("Time is now {}", GAME_TIME.lock().unwrap());
 
                 // updates emu time
                 emu.lock().unwrap().time += Duration::nanoseconds(16_666_667);
@@ -523,7 +523,7 @@ async fn game(emu: Arc<Mutex<Emu>>, cart: Vec<u8>, save: Option<Vec<u8>>) {
 }
 
 fn check_memory(ram: &[u8]) {
-    use std::io::{Seek, SeekFrom};
+    // use std::io::{Seek, SeekFrom};
     let mut mem_cursor = MemCursor::new(ram, MAIN_RAM_OFFSET as u64);
     let actors = ActorCollection::read(&mut mem_cursor).unwrap();
     // jp version stuff

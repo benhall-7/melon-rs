@@ -14,7 +14,7 @@ fn main() {
     let dst = Config::new("melonDS")
         .define("BUILD_QT_SDL", "OFF")
         .define("ENABLE_JIT", "OFF")
-        .define("ENABLE_GDBSTUB", "ON")
+        .define("ENABLE_GDBSTUB", "OFF")
         .build_target("all")
         .define("INTERCEPT", "ON")
         // this lets us replace the in-game time invocation with an emulated version
@@ -32,7 +32,7 @@ fn main() {
         .file("src/melon/cpp/Shims.cpp")
         .file("src/melon/cpp/Util.cpp")
         .file("melonDS/src/frontend/glad/glad.c")
-        .define("GDBSTUB_ENABLED", None)
+        // .define("GDBSTUB_ENABLED", None)
         .flag_if_supported("-std=c++17")
         .compile("melon-bindings"); // arbitrary library name, pick anything
 

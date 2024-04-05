@@ -1,9 +1,6 @@
-use std::{fs::File, io::Write, pin::Pin};
+use std::io::Write;
 
 use cxx::{CxxVector, UniquePtr};
-use tokio::sync::Mutex;
-
-use once_cell::sync::Lazy;
 
 use super::sys;
 
@@ -62,7 +59,9 @@ impl Nds {
     }
 
     pub fn setup_direct_boot(&mut self, rom_name: String) {
-        self.0.pin_mut().SetupDirectBoot();
+        unsafe {
+            sys::NDS_SetupDirectBoot(self.0.pin_mut(), rom_name);
+        }
     }
 
     pub fn start(&mut self) {

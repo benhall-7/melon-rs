@@ -24,6 +24,7 @@ namespace Shims
     u8 *MainRAMMut(NDS &nds);
     u32 MainRAMMaxSize(const NDS &nds);
 
+    void NDS_SetupDirectBoot(NDS &nds, rust::string romname);
     void NDS_SetNDSCart(NDS &nds, std::unique_ptr<NDSCart::CartCommon> cart);
 
     // CartCommon
