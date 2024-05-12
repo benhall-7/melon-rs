@@ -3,17 +3,16 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread::spawn;
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use clap::Parser;
 use config::{Config, ConfigFile, EmuAction, EmuInput};
 use glium::glutin::{
     self,
     event::{ElementState, Event, WindowEvent},
 };
-use melon::kssu::addresses::MAIN_RAM_OFFSET;
-use melon::kssu::io::MemCursor;
+
 use melon::nds::Nds;
-use once_cell::sync::Lazy;
+
 use replay::{Replay, SavestateContext};
 use rodio::{OutputStream, Sink};
 use tokio::time as ttime;
@@ -22,8 +21,8 @@ use window::{draw, get_draw_data};
 use winit::event::ModifiersState;
 
 use crate::args::Commands;
-use crate::melon::kssu::addresses::ACTOR_COLLECTION;
-use crate::melon::kssu::{Actor, ActorCollection};
+use crate::game_thread::GameThread;
+
 use crate::melon::nds::audio::NdsAudio;
 use crate::melon::nds::input::NdsKeyMask;
 use crate::melon::save;
@@ -32,6 +31,7 @@ use crate::replay::{ReplaySource, SavestateContextReplay};
 pub mod args;
 pub mod config;
 pub mod events;
+pub mod game_thread;
 pub mod melon;
 pub mod replay;
 pub mod utils;
@@ -52,14 +52,14 @@ pub enum ReplayState {
 }
 
 // #[derive(Debug)]
-pub struct Emu {
+pub struct Frontend {
     pub top_frame: [u8; 256 * 192 * 4],
     pub bottom_frame: [u8; 256 * 192 * 4],
     // TODO: doesn't implement debug
     pub audio: Sink,
     pub nds_input: NdsKeyMask,
     pub key_modifiers: ModifiersState,
-    pub state: EmuState,
+    pub emu_state: EmuState,
     pub savestate_write_request: Option<String>,
     pub savestate_read_request: Option<String>,
     pub replay: Option<(Replay, ReplayState)>,
@@ -67,15 +67,15 @@ pub struct Emu {
     pub replay_save_request: bool,
 }
 
-impl Emu {
+impl Frontend {
     pub fn new(audio: Sink, replay: Option<(Replay, ReplayState)>) -> Self {
-        Emu {
+        Frontend {
             top_frame: [0; 256 * 192 * 4],
             bottom_frame: [0; 256 * 192 * 4],
             audio,
             nds_input: NdsKeyMask::empty(),
             key_modifiers: ModifiersState::empty(),
-            state: EmuState::Pause,
+            emu_state: EmuState::Pause,
             savestate_read_request: None,
             savestate_write_request: None,
             replay,
@@ -225,13 +225,24 @@ async fn main() {
 
     // NOTE: rodio requires the OutputStream not to go out of scope until the end
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+    let audio_queue: Arc<Mutex<Vec<i16>>> = Default::default();
     let audio = Sink::try_new(&stream_handle).unwrap();
+    audio.append(NdsAudio::new(audio_queue.clone()));
 
-    let emu = Arc::new(Mutex::new(Emu::new(audio, replay)));
+    let emu = Arc::new(Mutex::new(Frontend::new(audio, replay)));
 
-    let game_emu = emu.clone();
-    let mut game_thread = Some(tokio::spawn(async move {
-        game(game_emu, cart, save, start_time).await;
+    let mut game_thread = GameThread::new(emu.clone(), audio_queue, cart, save, start_time);
+    let mut game_thread_handle = Some(tokio::spawn(async move {
+        let mut timer = ttime::interval_at(
+            ttime::Instant::now(),
+            ttime::Duration::from_nanos(16_666_667),
+        );
+        timer.set_missed_tick_behavior(ttime::MissedTickBehavior::Skip);
+        loop {
+            timer.tick().await;
+
+            game_thread.execute()
+        }
     }));
 
     let events_loop = glutin::event_loop::EventLoop::new();
@@ -264,8 +275,8 @@ async fn main() {
                 WindowEvent::CloseRequested => {
                     *control_flow = glutin::event_loop::ControlFlow::Exit;
 
-                    emu.lock().unwrap().state = EmuState::Stop;
-                    game_thread.take();
+                    emu.lock().unwrap().emu_state = EmuState::Stop;
+                    game_thread_handle.take();
                 }
                 WindowEvent::ModifiersChanged(modifiers) => {
                     emu.lock().unwrap().key_modifiers = modifiers;
@@ -298,7 +309,7 @@ async fn main() {
                             if let ElementState::Released = state {
                                 return;
                             }
-                            let emu_state = &mut emu.lock().unwrap().state;
+                            let emu_state = &mut emu.lock().unwrap().emu_state;
                             match *emu_state {
                                 EmuState::Pause | EmuState::Step => *emu_state = EmuState::Run,
                                 EmuState::Run => *emu_state = EmuState::Pause,
@@ -309,7 +320,7 @@ async fn main() {
                             if let ElementState::Released = state {
                                 return;
                             }
-                            let emu_state = &mut emu.lock().unwrap().state;
+                            let emu_state = &mut emu.lock().unwrap().emu_state;
                             match *emu_state {
                                 EmuState::Stop => {}
                                 _ => *emu_state = EmuState::Step,
@@ -368,154 +379,4 @@ async fn main() {
             }
         }
     });
-}
-
-async fn game(emu: Arc<Mutex<Emu>>, cart: Vec<u8>, save: Option<Vec<u8>>, time: DateTime<Utc>) {
-    let mut ds = melon::nds::Nds::new();
-
-    ds.set_nds_cart(&cart, save.as_deref());
-    ds.set_time(time);
-
-    println!("Needs direct boot? {:?}", ds.needs_direct_boot());
-
-    if ds.needs_direct_boot() {
-        ds.setup_direct_boot(String::from("Ultra.nds"));
-    }
-
-    ds.start();
-
-    let audio_queue: Arc<Mutex<Vec<i16>>> = Default::default();
-    {
-        let emu_audio = &mut emu.lock().unwrap().audio;
-        emu_audio.append(NdsAudio::new(audio_queue.clone()));
-    }
-
-    let mut timer = ttime::interval_at(
-        ttime::Instant::now(),
-        ttime::Duration::from_nanos(16_666_667),
-    );
-    timer.set_missed_tick_behavior(ttime::MissedTickBehavior::Skip);
-    loop {
-        timer.tick().await;
-
-        let mut force_pause = false;
-        let emu_state = emu.lock().unwrap().state;
-
-        match emu_state {
-            EmuState::Stop => break,
-            EmuState::Run | EmuState::Step => {
-                let nds_key = {
-                    let mut lock = emu.lock().unwrap();
-                    let emu_inputs = lock.nds_input;
-                    match lock.replay.as_mut() {
-                        None => emu_inputs,
-                        Some((replay, replay_state)) => match *replay_state {
-                            ReplayState::Playing => {
-                                let current_frame = ds.current_frame() as usize;
-                                if current_frame < replay.inputs.len() {
-                                    if current_frame == replay.inputs.len() - 1 {
-                                        force_pause = true;
-                                    }
-                                    NdsKeyMask::from_bits_retain(replay.inputs[current_frame])
-                                } else {
-                                    emu_inputs
-                                }
-                            }
-                            ReplayState::Recording => {
-                                let current_frame = ds.current_frame() as usize;
-                                if current_frame <= replay.inputs.len() {
-                                    replay.inputs.splice(current_frame.., [emu_inputs.bits()]);
-                                } else {
-                                    println!(
-                                        "WARNING: the replay is in recording mode, but \
-                                        cannot record new inputs, because the current \
-                                        frame extends beyond the last recorded frame"
-                                    )
-                                }
-                                emu_inputs
-                            }
-                        },
-                    }
-                };
-
-                ds.set_key_mask(nds_key);
-                ds.run_frame();
-
-                check_memory(ds.main_ram());
-
-                // audio is sent to the audio queue in 2 lines!
-                let output = ds.read_audio_output();
-                audio_queue.lock().unwrap().extend(output);
-
-                println!("Frame {}", ds.current_frame());
-
-                emu.lock()
-                    .map(|mut mutex| {
-                        ds.update_framebuffers(&mut mutex.top_frame, false);
-                        ds.update_framebuffers(&mut mutex.bottom_frame, true);
-                    })
-                    .unwrap();
-
-                if force_pause || emu_state == EmuState::Step {
-                    emu.lock().unwrap().state = EmuState::Pause;
-                }
-            }
-            EmuState::Pause => {}
-        }
-
-        emu.lock()
-            .map(|mut emu| {
-                if let Some(read_path) = emu.savestate_read_request.take() {
-                    emu.read_savestate(&mut ds, read_path);
-                }
-            })
-            .unwrap();
-
-        emu.lock()
-            .map(|mut emu| {
-                if let Some(write_path) = emu.savestate_write_request.take() {
-                    emu.write_savestate(&mut ds, write_path);
-                }
-            })
-            .unwrap();
-
-        emu.lock()
-            .map(|mut emu| {
-                if let Some(write_path) = emu.ram_write_request.take() {
-                    let ram = ds.main_ram();
-                    std::fs::write(write_path, ram).unwrap();
-                    println!("main RAM written to ram.bin");
-                }
-            })
-            .unwrap();
-
-        emu.lock()
-            .map(|mut emu| {
-                if emu.replay_save_request {
-                    emu.replay_save_request = false;
-
-                    if let Some(replay) = &emu.replay {
-                        let file = replay.0.name.clone();
-                        std::fs::write(file, serde_yaml::to_string(&replay.0).unwrap()).unwrap();
-                        println!("saved replay to {}", replay.0.name.to_string_lossy());
-                    }
-                }
-            })
-            .unwrap();
-    }
-
-    // ds.stop();
-}
-
-fn check_memory(ram: &[u8]) {
-    // use std::io::{Seek, SeekFrom};
-    let mut mem_cursor = MemCursor::new(ram, MAIN_RAM_OFFSET as u64);
-    let actors = ActorCollection::read(&mut mem_cursor).unwrap();
-    // jp version stuff
-    // mem_cursor
-    //     .seek(SeekFrom::Start(0x02049e0c_u64))
-    //     .unwrap();
-    // // let actors = ActorCollection::read(&mut mem_cursor).unwrap();
-    // let actor = Actor::read(&mut mem_cursor).unwrap();
-    println!("{:#?}", actors);
 }
