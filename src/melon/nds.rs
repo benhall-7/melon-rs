@@ -5,12 +5,14 @@ use cxx::{CxxVector, UniquePtr};
 
 use super::sys;
 
-pub mod audio;
 pub mod input;
 
 pub struct Nds(UniquePtr<sys::NDS>);
 
 impl Nds {
+    pub const AUDIO_CHANNELS: u16 = 2;
+    pub const AUDIO_SAMPLE_RATE: u32 = 32824;
+
     pub fn new() -> Self {
         let mut nds = Nds(sys::New_NDS());
 

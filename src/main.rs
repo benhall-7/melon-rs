@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread::spawn;
 
+use audio::Audio;
 use chrono::{DateTime, Utc};
 use clap::Parser;
 use config::{Config, ConfigFile, EmuAction, EmuInput};
@@ -21,14 +22,15 @@ use window::{draw, get_draw_data};
 use winit::event::ModifiersState;
 
 use crate::args::Commands;
+use crate::audio::Stream;
 use crate::game_thread::GameThread;
 
-use crate::melon::nds::audio::NdsAudio;
 use crate::melon::nds::input::NdsKeyMask;
 use crate::melon::save;
 use crate::replay::{ReplaySource, SavestateContextReplay};
 
 pub mod args;
+pub mod audio;
 pub mod config;
 pub mod events;
 pub mod game_thread;
@@ -56,7 +58,7 @@ pub struct Frontend {
     pub top_frame: [u8; 256 * 192 * 4],
     pub bottom_frame: [u8; 256 * 192 * 4],
     // TODO: doesn't implement debug
-    pub audio: Sink,
+    pub audio: Arc<Mutex<Vec<i16>>>,
     pub nds_input: NdsKeyMask,
     pub key_modifiers: ModifiersState,
     pub emu_state: EmuState,
@@ -68,7 +70,7 @@ pub struct Frontend {
 }
 
 impl Frontend {
-    pub fn new(audio: Sink, replay: Option<(Replay, ReplayState)>) -> Self {
+    pub fn new(audio: Arc<Mutex<Vec<i16>>>, replay: Option<(Replay, ReplayState)>) -> Self {
         Frontend {
             top_frame: [0; 256 * 192 * 4],
             bottom_frame: [0; 256 * 192 * 4],
@@ -222,16 +224,12 @@ async fn main() {
         })
     });
     println!("start_time = {}", start_time);
+    let mut audio = Audio::new();
 
-    // NOTE: rodio requires the OutputStream not to go out of scope until the end
-    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
-    let audio_queue: Arc<Mutex<Vec<i16>>> = Default::default();
-    let audio = Sink::try_new(&stream_handle).unwrap();
-    audio.append(NdsAudio::new(audio_queue.clone()));
+    let frontend = Frontend::new(audio.get_game_stream(), replay);
+    let emu = Arc::new(Mutex::new(frontend));
 
-    let emu = Arc::new(Mutex::new(Frontend::new(audio, replay)));
-
-    let mut game_thread = GameThread::new(emu.clone(), audio_queue, cart, save, start_time);
+    let mut game_thread = GameThread::new(emu.clone(), cart, save, start_time);
     let mut game_thread_handle = Some(tokio::spawn(async move {
         let mut timer = ttime::interval_at(
             ttime::Instant::now(),
