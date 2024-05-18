@@ -2,14 +2,10 @@ use std::sync::{Arc, Mutex};
 
 use chrono::{DateTime, Utc};
 
-use crate::{
-    melon::{
-        self,
-        kssu::{addresses::MAIN_RAM_OFFSET, io::MemCursor, ActorCollection},
-        nds::{input::NdsKeyMask, Nds},
-    },
-    EmuState, Frontend, ReplayState,
-};
+use crate::melon::kssu::{addresses::MAIN_RAM_OFFSET, io::MemCursor, ActorCollection};
+use crate::melon::nds::{input::NdsKeyMask, Nds};
+
+use crate::frontend::{EmuState, Frontend, ReplayState};
 
 pub struct GameThread {
     ds: Nds,
@@ -25,7 +21,7 @@ impl GameThread {
         save: Option<Vec<u8>>,
         time: DateTime<Utc>,
     ) -> Self {
-        let mut ds = melon::nds::Nds::new();
+        let mut ds = Nds::new();
 
         ds.set_nds_cart(&cart, save.as_deref());
         ds.set_time(time);
@@ -46,7 +42,7 @@ impl GameThread {
     }
 
     pub fn execute(&mut self) {
-        // check emu state and 
+        // check emu state and
         let emu_state = self.emu.lock().unwrap().emu_state;
 
         match emu_state {
