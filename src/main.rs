@@ -6,7 +6,7 @@ use tokio::time as ttime;
 
 use crate::audio::Audio;
 use crate::config::{Config, ConfigFile, StartParams};
-use crate::frontend::{Frontend,};
+use crate::frontend::Frontend;
 use crate::game_thread::GameThread;
 use crate::window::{draw, get_draw_data};
 

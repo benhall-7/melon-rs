@@ -5,10 +5,10 @@ use std::sync::{Arc, Mutex};
 use std::thread::spawn;
 
 use glium::glutin::event::{ElementState, WindowEvent};
-use winit::event::ModifiersState;
+use serde::{Deserialize, Serialize};
+use winit::event::{ModifiersState, VirtualKeyCode};
 
-use crate::config::{EmuAction, EmuInput};
-use crate::melon::nds::input::NdsKeyMask;
+use crate::melon::nds::input::{NdsKey, NdsKeyMask};
 use crate::melon::nds::Nds;
 use crate::melon::save;
 use crate::replay::SavestateContextReplay;
@@ -27,6 +27,25 @@ pub enum EmuState {
 pub enum ReplayState {
     Recording,
     Playing,
+}
+
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub enum EmuAction {
+    NdsKey(NdsKey),
+    PlayPlause,
+    Step,
+    Save(String),
+    ReadSavestate(String),
+    WriteSavestate(String),
+    ToggleReplayMode,
+    SaveReplay,
+    WriteMainRAM(String),
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
+pub struct EmuInput {
+    pub key_code: VirtualKeyCode,
+    pub modifiers: ModifiersState,
 }
 
 // #[derive(Debug)]

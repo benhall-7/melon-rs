@@ -6,29 +6,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     args::{Args, Commands},
-    frontend::ReplayState,
+    frontend::{EmuAction, EmuInput, ReplayState},
     melon::nds::input::NdsKey,
     replay::{Replay, ReplaySource},
 };
-
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub enum EmuAction {
-    NdsKey(NdsKey),
-    PlayPlause,
-    Step,
-    Save(String),
-    ReadSavestate(String),
-    WriteSavestate(String),
-    ToggleReplayMode,
-    SaveReplay,
-    WriteMainRAM(String),
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct EmuInput {
-    pub key_code: VirtualKeyCode,
-    pub modifiers: ModifiersState,
-}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Config {
