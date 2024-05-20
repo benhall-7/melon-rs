@@ -38,6 +38,7 @@ pub struct Config {
     pub key_map: HashMap<EmuInput, EmuAction>,
 }
 
+#[derive(Debug, PartialEq, Clone)]
 pub struct StartParams {
     pub replay: Option<(Replay, ReplayState)>,
     pub game_name: PathBuf,
