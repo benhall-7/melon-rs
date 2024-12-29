@@ -2,6 +2,12 @@ use bitflags::bitflags;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum NdsInput {
+    Key(NdsKey),
+    Touch((u8, u8)),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum NdsKey {
     A,
     B,

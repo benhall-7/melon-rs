@@ -107,17 +107,6 @@ impl Nds {
         }
     }
 
-    // pub fn set_render_settings(&mut self) {
-    //     sys::gpu::SetRenderSettings(
-    //         0,
-    //         &mut sys::gpu::RenderSettings {
-    //             Soft_Threaded: false,
-    //             GL_ScaleFactor: 1,
-    //             GL_BetterPolygons: false,
-    //         },
-    //     );
-    // }
-
     pub fn read_audio_output(&mut self) -> Vec<i16> {
         let mut buffer = [0i16; 1024 * 2];
         let samples_read =

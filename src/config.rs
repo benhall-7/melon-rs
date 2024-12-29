@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     args::{Args, Commands},
-    frontend::{EmuAction, EmuInput, ReplayState},
+    frontend::{KeyPressAction, EmuInput, ReplayState},
     melon::nds::input::NdsKey,
     replay::{Replay, ReplaySource},
 };
@@ -16,7 +16,7 @@ pub struct Config {
     pub default_game_path: Option<PathBuf>,
     pub default_save_path: Option<PathBuf>,
     pub timestamp: Option<DateTime<Utc>>,
-    pub key_map: HashMap<EmuInput, EmuAction>,
+    pub key_map: HashMap<EmuInput, KeyPressAction>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -102,20 +102,20 @@ impl Default for Config {
             default_save_path: None,
             timestamp: None,
             key_map: vec![
-                (VirtualKeyCode::K, EmuAction::NdsKey(NdsKey::A)),
-                (VirtualKeyCode::M, EmuAction::NdsKey(NdsKey::B)),
-                (VirtualKeyCode::J, EmuAction::NdsKey(NdsKey::X)),
-                (VirtualKeyCode::N, EmuAction::NdsKey(NdsKey::Y)),
-                (VirtualKeyCode::W, EmuAction::NdsKey(NdsKey::Up)),
-                (VirtualKeyCode::A, EmuAction::NdsKey(NdsKey::Left)),
-                (VirtualKeyCode::S, EmuAction::NdsKey(NdsKey::Down)),
-                (VirtualKeyCode::D, EmuAction::NdsKey(NdsKey::Right)),
-                (VirtualKeyCode::Q, EmuAction::NdsKey(NdsKey::L)),
-                (VirtualKeyCode::P, EmuAction::NdsKey(NdsKey::R)),
-                (VirtualKeyCode::Space, EmuAction::NdsKey(NdsKey::Start)),
-                (VirtualKeyCode::X, EmuAction::NdsKey(NdsKey::Select)),
-                (VirtualKeyCode::Comma, EmuAction::PlayPlause),
-                (VirtualKeyCode::Period, EmuAction::Step),
+                (VirtualKeyCode::K, KeyPressAction::NdsKey(NdsKey::A)),
+                (VirtualKeyCode::M, KeyPressAction::NdsKey(NdsKey::B)),
+                (VirtualKeyCode::J, KeyPressAction::NdsKey(NdsKey::X)),
+                (VirtualKeyCode::N, KeyPressAction::NdsKey(NdsKey::Y)),
+                (VirtualKeyCode::W, KeyPressAction::NdsKey(NdsKey::Up)),
+                (VirtualKeyCode::A, KeyPressAction::NdsKey(NdsKey::Left)),
+                (VirtualKeyCode::S, KeyPressAction::NdsKey(NdsKey::Down)),
+                (VirtualKeyCode::D, KeyPressAction::NdsKey(NdsKey::Right)),
+                (VirtualKeyCode::Q, KeyPressAction::NdsKey(NdsKey::L)),
+                (VirtualKeyCode::P, KeyPressAction::NdsKey(NdsKey::R)),
+                (VirtualKeyCode::Space, KeyPressAction::NdsKey(NdsKey::Start)),
+                (VirtualKeyCode::X, KeyPressAction::NdsKey(NdsKey::Select)),
+                (VirtualKeyCode::Comma, KeyPressAction::PlayPlause),
+                (VirtualKeyCode::Period, KeyPressAction::Step),
             ]
             .into_iter()
             .map(|basic| {
@@ -132,7 +132,7 @@ impl Default for Config {
                     key_code: VirtualKeyCode::S,
                     modifiers: ModifiersState::CTRL,
                 },
-                EmuAction::Save(String::from("save.bin")),
+                KeyPressAction::Save(String::from("save.bin")),
             )])
             .collect(),
         }
@@ -148,7 +148,7 @@ pub struct EmuInputEntry {
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ConfigKeyMapEntry {
     input: EmuInputEntry,
-    action: EmuAction,
+    action: KeyPressAction,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]

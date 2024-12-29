@@ -10,6 +10,7 @@ pub struct Replay {
     pub source: ReplaySource,
     // inputs are determined by a 32-bit bitfield and we can
     // pull it straight from melonDS
+    // TODO: this only makes sense for button presses, not screen clicks, lid closing, etc
     pub inputs: Vec<u32>,
 }
 
