@@ -253,6 +253,8 @@ mod sys {
         fn CartInserted(&self) -> bool;
 
         fn SetKeyMask(self: Pin<&mut NDS>, mask: u32);
+        fn TouchScreen(self: Pin<&mut NDS>, x: u16, y: u16);
+        fn ReleaseScreen(self: Pin<&mut NDS>);
         // fn IsLidClosed() -> bool;
         // fn SetLidClosed(closed: bool);
 

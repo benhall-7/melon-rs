@@ -15,11 +15,7 @@ impl Nds {
 
     pub fn new() -> Self {
         let mut nds = Nds(sys::New_NDS());
-
-        // nds.init_renderer();
-        // nds.set_render_settings();
         nds.reset();
-
         nds
     }
 
@@ -34,6 +30,14 @@ impl Nds {
 
     pub fn set_key_mask(&mut self, key_mask: input::NdsKeyMask) {
         self.0.pin_mut().SetKeyMask(!key_mask.bits())
+    }
+
+    pub fn touch_screen(&mut self, x: u16, y: u16) {
+        self.0.pin_mut().TouchScreen(x, y);
+    }
+
+    pub fn release_screen(&mut self) {
+        self.0.pin_mut().ReleaseScreen();
     }
 
     // pub fn is_lid_closed(&self) -> bool {
