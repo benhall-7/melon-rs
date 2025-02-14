@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string>
+#include <stdarg.h>
 
 #include "Platform.h"
 #include "Util.cpp"
