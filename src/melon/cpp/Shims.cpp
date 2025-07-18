@@ -92,7 +92,7 @@ namespace Shims
     {
         if (savedata == nullptr)
         {
-            return NDSCart::ParseROM(romdata, romlen, std::nullopt);
+            return NDSCart::ParseROM(romdata, romlen, nullptr, std::nullopt);
         }
         else
         {
@@ -105,7 +105,7 @@ namespace Shims
                 .SRAMLength = savelen,
             };
 
-            return NDSCart::ParseROM(romdata, romlen, std::move(cart_args));
+            return NDSCart::ParseROM(romdata, romlen, nullptr, std::move(cart_args));
         }
     }
 

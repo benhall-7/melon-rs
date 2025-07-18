@@ -7,13 +7,14 @@ fn main() {
     println!("cargo:rerun-if-changed=melonDS/");
     println!("cargo:rerun-if-changed=src/melon/cpp/");
 
-    let directory = current_dir().unwrap();
+    // let directory = current_dir().unwrap();
 
     // build melonDS
     let dst = Config::new("melonDS")
         .define("BUILD_QT_SDL", "OFF")
         .define("ENABLE_JIT", "OFF")
         .define("ENABLE_GDBSTUB", "OFF")
+        .define("ENABLE_OGLRENDERER", "OFF")
         .build_target("all")
         .build();
 
