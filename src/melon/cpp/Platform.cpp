@@ -172,7 +172,7 @@ namespace melonDS::Platform
         return PlatformImpl::FileLength(file);
     }
 
-    void SignalStop(StopReason reason) {
+    void SignalStop(StopReason reason, void* userdata) {
         // no op
     }
     void Log(LogLevel level, const char* fmt, ...) {
@@ -184,61 +184,71 @@ namespace melonDS::Platform
         vprintf(fmt, args);
         va_end(args);
     }
-    void WriteFirmware(const Firmware& firmware, u32 writeoffset, u32 writelen) {
+    void WriteFirmware(const Firmware& firmware, u32 writeoffset, u32 writelen, void* userdata) {
         // no op
     }
-    void WriteDateTime(int year, int month, int day, int hour, int minute, int second) {
+    void WriteDateTime(int year, int month, int day, int hour, int minute, int second, void* userdata) {
         // no op
     }
 
-    void WriteNDSSave(const u8 *savedata, u32 savelen, u32 writeoffset, u32 writelen)
+    void WriteNDSSave(const u8 *savedata, u32 savelen, u32 writeoffset, u32 writelen, void* userdata)
     {
         return PlatformImpl::WriteNDSSave(savedata, savelen, writeoffset, writelen);
     }
-    bool MP_Init()
+    bool MP_Init(void* userdata)
     {
         return PlatformImpl::MP_Init();
     }
-    void MP_DeInit()
+    void MP_DeInit(void* userdata)
     {
         return PlatformImpl::MP_DeInit();
     }
-    void MP_Begin()
+    void MP_Begin(void* userdata)
     {
         return PlatformImpl::MP_Begin();
     }
-    void MP_End()
+    void MP_End(void* userdata)
     {
         return PlatformImpl::MP_End();
     }
-    int MP_SendPacket(u8 *data, int len, u64 timestamp)
+    int MP_SendPacket(u8 *data, int len, u64 timestamp, void* userdata)
     {
         return PlatformImpl::MP_SendPacket(data, len, timestamp);
     }
-    int MP_RecvPacket(u8 *data, u64 *timestamp)
+    int MP_RecvPacket(u8 *data, u64 *timestamp, void* userdata)
     {
         return PlatformImpl::MP_RecvPacket(data, timestamp);
     }
-    int MP_SendCmd(u8 *data, int len, u64 timestamp)
+    int MP_SendCmd(u8 *data, int len, u64 timestamp, void* userdata)
     {
         return PlatformImpl::MP_SendCmd(data, len, timestamp);
     }
-    int MP_SendReply(u8 *data, int len, u64 timestamp, u16 aid)
+    int MP_SendReply(u8 *data, int len, u64 timestamp, u16 aid, void* userdata)
     {
         return PlatformImpl::MP_SendReply(data, len, timestamp, aid);
     }
-    int MP_SendAck(u8 *data, int len, u64 timestamp)
+    int MP_SendAck(u8 *data, int len, u64 timestamp, void* userdata)
     {
         return PlatformImpl::MP_SendAck(data, len, timestamp);
     }
-    int MP_RecvHostPacket(u8 *data, u64 *timestamp)
+    int MP_RecvHostPacket(u8 *data, u64 *timestamp, void* userdata)
     {
         return PlatformImpl::MP_RecvHostPacket(data, timestamp);
     }
-    u16 MP_RecvReplies(u8 *data, u64 timestamp, u16 aidmask)
+    u16 MP_RecvReplies(u8 *data, u64 timestamp, u16 aidmask, void* userdata)
     {
         return PlatformImpl::MP_RecvReplies(data, timestamp, aidmask);
     }
+
+    int Net_SendPacket(u8* data, int len, void* userdata)
+    {
+        return PlatformImpl::Net_SendPacket(data, len);
+    }
+    int Net_RecvPacket(u8* data, void* userdata)
+    {
+        return PlatformImpl::Net_RecvPacket(data);
+    }
+
     bool LAN_Init()
     {
         return PlatformImpl::LAN_Init();

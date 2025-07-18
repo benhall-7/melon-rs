@@ -137,6 +137,14 @@ mod sys {
         unsafe fn lan_recv_packet(data: *mut u8) -> i32;
 
         // multiplayer
+        #[cxx_name = "MP_Init"]
+        fn mp_init() -> bool;
+        #[cxx_name = "MP_DeInit"]
+        fn mp_deinit();
+        #[cxx_name = "MP_Begin"]
+        fn mp_begin();
+        #[cxx_name = "MP_End"]
+        fn mp_end();
         #[cxx_name = "MP_SendAck"]
         unsafe fn mp_send_ack(data: *mut u8, len: i32, timestamp: u64) -> i32;
         #[cxx_name = "MP_SendCmd"]
@@ -151,14 +159,12 @@ mod sys {
         unsafe fn mp_recv_host_packet(data: *mut u8, timestamp: *mut u64) -> i32;
         #[cxx_name = "MP_RecvReplies"]
         unsafe fn mp_recv_replies(data: *mut u8, timestamp: u64, aidmask: u16) -> u16;
-        #[cxx_name = "MP_Init"]
-        fn mp_init() -> bool;
-        #[cxx_name = "MP_DeInit"]
-        fn mp_deinit();
-        #[cxx_name = "MP_Begin"]
-        fn mp_begin();
-        #[cxx_name = "MP_End"]
-        fn mp_end();
+
+        // net
+        #[cxx_name = "Net_SendPacket"]
+        unsafe fn net_send_packet(data: *mut u8, len: i32) -> i32;
+        #[cxx_name = "Net_RecvPacket"]
+        unsafe fn net_recv_packet(data: *mut u8) -> i32;
 
         #[cxx_name = "WriteNDSSave"]
         unsafe fn write_nds_save(
@@ -645,6 +651,12 @@ unsafe fn mp_recv_host_packet(data: *mut u8, timestamp: *mut u64) -> i32 {
     0
 }
 unsafe fn mp_recv_replies(data: *mut u8, timestamp: u64, aidmask: u16) -> u16 {
+    0
+}
+unsafe fn net_send_packet(data: *mut u8, len: i32) -> i32 {
+    0
+}
+unsafe fn net_recv_packet(data: *mut u8) -> i32 {
     0
 }
 fn mp_init() -> bool {
