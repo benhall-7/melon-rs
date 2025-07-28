@@ -102,3 +102,16 @@ impl Actor {
         })
     }
 }
+
+fn check_memory(ram: &[u8]) {
+    // use std::io::{Seek, SeekFrom};
+    let mut mem_cursor = MemCursor::new(ram, MAIN_RAM_OFFSET as u64);
+    let actors = ActorCollection::read(&mut mem_cursor).unwrap();
+    // jp version stuff
+    // mem_cursor
+    //     .seek(SeekFrom::Start(0x02049e0c_u64))
+    //     .unwrap();
+    // // let actors = ActorCollection::read(&mut mem_cursor).unwrap();
+    // let actor = Actor::read(&mut mem_cursor).unwrap();
+    println!("{:#?}", actors);
+}

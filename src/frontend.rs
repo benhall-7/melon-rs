@@ -2,15 +2,14 @@ use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::thread::spawn;
 
-use glium::glutin::event::{ElementState, WindowEvent};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use winit::event::{ModifiersState, MouseButton, VirtualKeyCode};
+use winit::event::{ModifiersState, VirtualKeyCode};
 
-use crate::melon::nds::input::{NdsInput, NdsKey, NdsKeyMask};
+use crate::melon::nds::input::{NdsKey, NdsKeyMask};
 use crate::melon::nds::Nds;
-use crate::melon::save;
+// use crate::melon::save;
 use crate::replay::SavestateContextReplay;
 use crate::replay::{Replay, SavestateContext};
 use crate::utils::localize_pathbuf;
@@ -56,8 +55,25 @@ pub struct EmuInput {
     pub modifiers: ModifiersState,
 }
 
-#[derive(Debug)]
+pub enum InputEvent {
+    KeyDown(VirtualKeyCode),
+    KeyUp(VirtualKeyCode),
+    CursorMove(Option<(u8, u8)>),
+    MouseDown,
+    MouseUp,
+    KeyModifierChange(ModifiersState),
+}
+
+pub enum Request {
+    SavestateWrite(PathBuf),
+    SavestateRead(PathBuf),
+    RamWrite(PathBuf),
+    ReplaySave,
+}
+
+// #[derive(Debug)]
 pub struct Frontend {
+    pub nds: Nds,
     pub top_frame: [u8; 256 * 192 * 4],
     pub bottom_frame: [u8; 256 * 192 * 4],
     pub audio: Arc<Mutex<Vec<i16>>>,
@@ -68,16 +84,32 @@ pub struct Frontend {
     pub cursor_pressed: bool,
     pub state: EmuState,
     pub replay: Option<(Replay, ReplayState)>,
-    pub requests: Requests,
 }
 
 impl Frontend {
     pub fn new(
+        cart: Vec<u8>,
+        save: Option<Vec<u8>>,
+        time: DateTime<Utc>,
         audio: Arc<Mutex<Vec<i16>>>,
         key_map: HashMap<EmuInput, KeyPressAction>,
         replay: Option<(Replay, ReplayState)>,
     ) -> Self {
+        let mut nds = Nds::new();
+
+        nds.set_nds_cart(&cart, save.as_deref());
+        nds.set_time(time);
+
+        println!("Needs direct boot? {:?}", nds.needs_direct_boot());
+
+        if nds.needs_direct_boot() {
+            nds.setup_direct_boot(String::from("TEMP"));
+        }
+
+        nds.start();
+
         Frontend {
+            nds,
             top_frame: [0; 256 * 192 * 4],
             bottom_frame: [0; 256 * 192 * 4],
             audio,
@@ -88,11 +120,150 @@ impl Frontend {
             cursor_pressed: false,
             state: EmuState::Pause,
             replay,
-            requests: Default::default(),
         }
     }
 
-    // TODO: these may be pretty expensive to run from inside the emu lock
+    pub fn handle_input_event(&mut self, event: InputEvent) {
+        match event {
+            InputEvent::KeyDown(key_code) => {
+                let modifiers = self.key_modifiers;
+
+                let emu_key = match self.key_map.get(&EmuInput {
+                    key_code,
+                    modifiers,
+                }) {
+                    Some(action) => action.to_owned(),
+                    None => return,
+                };
+
+                match emu_key {
+                    KeyPressAction::NdsKey(nds_key) => self.nds_input.insert(nds_key.into()),
+                    KeyPressAction::PlayPlause => {
+                        let emu_state = &mut self.state;
+                        match *emu_state {
+                            EmuState::Pause | EmuState::Step => *emu_state = EmuState::Run,
+                            EmuState::Run => *emu_state = EmuState::Pause,
+                            EmuState::Stop => {}
+                        }
+                    }
+                    KeyPressAction::Step => {
+                        let emu_state = &mut self.state;
+                        match *emu_state {
+                            EmuState::Stop => {}
+                            _ => *emu_state = EmuState::Step,
+                        }
+                    }
+                    // TODO: implement these actions
+                    KeyPressAction::Save(_path) => {
+                        // ...
+                    }
+                    KeyPressAction::ReadSavestate(_path) => {
+                        // self.requests.savestate_read_request = Some(path);
+                    }
+                    KeyPressAction::WriteSavestate(_path) => {
+                        // self.requests.savestate_write_request = Some(path);
+                    }
+                    KeyPressAction::ToggleReplayMode => {
+                        if let Some(state) = self.replay.as_mut() {
+                            match state.1 {
+                                ReplayState::Playing => {
+                                    state.1 = ReplayState::Recording;
+                                    println!("Switched to write mode");
+                                }
+                                ReplayState::Recording => {
+                                    state.1 = ReplayState::Playing;
+                                    println!("Switched to read mode");
+                                }
+                            }
+                        }
+                    }
+                    KeyPressAction::SaveReplay => {
+                        // self.requests.replay_save_request = true;
+                    }
+                    KeyPressAction::WriteMainRAM(_path) => {
+                        // self.requests.ram_write_request = Some(path);
+                    }
+                }
+            }
+            InputEvent::KeyUp(key_code) => {
+                let modifiers = self.key_modifiers;
+
+                let emu_key = match self.key_map.get(&EmuInput {
+                    key_code,
+                    modifiers,
+                }) {
+                    Some(action) => action.to_owned(),
+                    None => return,
+                };
+
+                match emu_key {
+                    KeyPressAction::NdsKey(nds_key) => self.nds_input.remove(nds_key.into()),
+                    _ => {}
+                }
+            }
+            InputEvent::CursorMove(coord) => self.cursor = coord,
+            InputEvent::MouseDown => self.cursor_pressed = true,
+            InputEvent::MouseUp => self.cursor_pressed = false,
+            InputEvent::KeyModifierChange(mods) => self.key_modifiers = mods,
+        }
+    }
+
+    pub fn run_frame(&mut self) {
+        let nds_input = self.get_nds_input();
+        self.record_replay_nds_input();
+        self.nds.set_key_mask(nds_input);
+
+        self.nds.run_frame();
+
+        self.update_audio();
+        self.update_framebuffers();
+    }
+
+    pub fn get_nds_input(&self) -> NdsKeyMask {
+        let emu_inputs = self.nds_input;
+        let current_frame = self.nds.current_frame() as usize;
+        if let Some((replay, ReplayState::Playing)) = &self.replay {
+            if current_frame < replay.inputs.len() {
+                return NdsKeyMask::from_bits_retain(replay.inputs[current_frame]);
+            }
+        }
+        return emu_inputs;
+    }
+
+    pub fn record_replay_nds_input(&mut self) {
+        let emu_inputs = self.nds_input;
+        let current_frame = self.nds.current_frame() as usize;
+
+        if let Some((replay, ReplayState::Recording)) = self.replay.as_mut() {
+            if current_frame <= replay.inputs.len() {
+                replay.inputs.splice(current_frame.., [emu_inputs.bits()]);
+            } else {
+                println!(
+                    "WARNING: the replay is in recording mode, but \
+                                cannot record new inputs, because the current \
+                                frame extends beyond the last recorded frame"
+                )
+            }
+        }
+    }
+
+    pub fn update_audio(&mut self) {
+        let audio_out = self.nds.read_audio_output();
+        self.audio
+            .lock()
+            .map(|mut stream| stream.extend(audio_out))
+            .expect("failed to access audio lock");
+    }
+
+    pub fn update_framebuffers(&mut self) {
+        let mut top = self.top_frame;
+        let mut bottom = self.bottom_frame;
+        self.nds.update_framebuffers(&mut top, false);
+        self.nds.update_framebuffers(&mut bottom, true);
+        self.top_frame = top;
+        self.bottom_frame = bottom;
+    }
+
     pub fn read_savestate(&mut self, nds: &mut Nds, file: String) {
         let localized = localize_pathbuf(file).to_string_lossy().into_owned();
 
@@ -148,131 +319,5 @@ impl Frontend {
             .expect("Couldn't write savestate context object to file");
 
         assert!(nds.write_savestate(localized));
-    }
-
-    /// Run a window event through the frontend.
-    /// Returns true when the process should end.
-    pub fn window_event(&mut self, event: WindowEvent) -> bool {
-        match event {
-            WindowEvent::CloseRequested => {
-                self.state = EmuState::Stop;
-                return true;
-            }
-            WindowEvent::ModifiersChanged(modifiers) => {
-                self.key_modifiers = modifiers;
-            }
-            WindowEvent::KeyboardInput { input, .. } => {
-                if input.virtual_keycode.is_none() {
-                    return false;
-                }
-                let modifiers = self.key_modifiers;
-
-                let emu_key = match self.key_map.get(&EmuInput {
-                    key_code: input.virtual_keycode.unwrap(),
-                    modifiers,
-                }) {
-                    Some(action) => action.to_owned(),
-                    None => return false,
-                };
-
-                let state = input.state;
-                match emu_key {
-                    KeyPressAction::NdsKey(nds_key) => match state {
-                        ElementState::Pressed => self.nds_input.insert(nds_key.into()),
-                        ElementState::Released => self.nds_input.remove(nds_key.into()),
-                    },
-                    KeyPressAction::PlayPlause => {
-                        if let ElementState::Released = state {
-                            return false;
-                        }
-                        let emu_state = &mut self.state;
-                        match *emu_state {
-                            EmuState::Pause | EmuState::Step => *emu_state = EmuState::Run,
-                            EmuState::Run => *emu_state = EmuState::Pause,
-                            EmuState::Stop => {}
-                        }
-                    }
-                    KeyPressAction::Step => {
-                        if let ElementState::Released = state {
-                            return false;
-                        }
-                        let emu_state = &mut self.state;
-                        match *emu_state {
-                            EmuState::Stop => {}
-                            _ => *emu_state = EmuState::Step,
-                        }
-                    }
-                    KeyPressAction::Save(path) => {
-                        if let ElementState::Released = state {
-                            return false;
-                        }
-                        // TODO: track this thread
-                        spawn(|| save::update_save(path.into()));
-                    }
-                    KeyPressAction::ReadSavestate(path) => {
-                        if let ElementState::Released = state {
-                            return false;
-                        }
-                        self.requests.savestate_read_request = Some(path);
-                    }
-                    KeyPressAction::WriteSavestate(path) => {
-                        if let ElementState::Released = state {
-                            return false;
-                        }
-                        self.requests.savestate_write_request = Some(path);
-                    }
-                    KeyPressAction::ToggleReplayMode => {
-                        if let ElementState::Released = state {
-                            return false;
-                        }
-                        if let Some(state) = self.replay.as_mut() {
-                            match state.1 {
-                                ReplayState::Playing => {
-                                    state.1 = ReplayState::Recording;
-                                    println!("Switched to write mode");
-                                }
-                                ReplayState::Recording => {
-                                    state.1 = ReplayState::Playing;
-                                    println!("Switched to read mode");
-                                }
-                            }
-                        }
-                    }
-                    KeyPressAction::SaveReplay => {
-                        if let ElementState::Released = state {
-                            return false;
-                        }
-                        self.requests.replay_save_request = true;
-                    }
-                    KeyPressAction::WriteMainRAM(path) => {
-                        if let ElementState::Released = state {
-                            return false;
-                        }
-                        self.requests.ram_write_request = Some(path);
-                    }
-                }
-            }
-            WindowEvent::MouseInput {
-                device_id,
-                state,
-                button,
-                modifiers,
-            } => match button {
-                MouseButton::Left => {
-                    self.cursor_pressed = state == ElementState::Pressed;
-                }
-                _ => {}
-            },
-            WindowEvent::CursorMoved {
-                device_id,
-                position,
-                modifiers,
-            } => {
-                println!("position: {},{}", position.x, position.y);
-            }
-            _ => {}
-        }
-
-        false
     }
 }
