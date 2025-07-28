@@ -42,66 +42,7 @@ impl GameThread {
     }
 
     pub fn execute(&mut self) {
-        // check emu state and
-        let emu_state = self.emu.lock().unwrap().state;
-
-        match emu_state {
-            EmuState::Stop => return,
-            EmuState::Run | EmuState::Step => {
-                let mut force_pause = false;
-
-                self.run_frame(&mut force_pause);
-
-                if force_pause || emu_state == EmuState::Step {
-                    self.emu.lock().unwrap().state = EmuState::Pause;
-                }
-            }
-            EmuState::Pause => {}
-        }
-
-        self.emu
-            .lock()
-            .map(|mut emu| {
-                if let Some(read_path) = emu.requests.savestate_read_request.take() {
-                    emu.read_savestate(&mut self.ds, read_path);
-                }
-            })
-            .unwrap();
-
-        self.emu
-            .lock()
-            .map(|mut emu| {
-                if let Some(write_path) = emu.requests.savestate_write_request.take() {
-                    emu.write_savestate(&mut self.ds, write_path);
-                }
-            })
-            .unwrap();
-
-        self.emu
-            .lock()
-            .map(|mut emu| {
-                if let Some(write_path) = emu.requests.ram_write_request.take() {
-                    let ram = self.ds.main_ram();
-                    std::fs::write(write_path, ram).unwrap();
-                    println!("main RAM written to ram.bin");
-                }
-            })
-            .unwrap();
-
-        self.emu
-            .lock()
-            .map(|mut emu| {
-                if emu.requests.replay_save_request {
-                    emu.requests.replay_save_request = false;
-
-                    if let Some(replay) = &emu.replay {
-                        let file = replay.0.name.clone();
-                        std::fs::write(file, serde_yaml::to_string(&replay.0).unwrap()).unwrap();
-                        println!("saved replay to {}", replay.0.name.to_string_lossy());
-                    }
-                }
-            })
-            .unwrap();
+        // check emu state and ...
     }
 
     // TODO: figure out a better place for the force_pause logic

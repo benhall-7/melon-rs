@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum NdsInput {
     Key(NdsKey),
-    Touch((u8, u8)),
+    Stylus((u8, u8)),
+    // TODO: lid open/close, mic, power button?
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
