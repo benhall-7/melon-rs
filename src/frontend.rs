@@ -5,22 +5,15 @@ use std::sync::{Arc, Mutex};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use tokio::sync::{mpsc, watch};
 use winit::event::{ModifiersState, VirtualKeyCode};
 
 use crate::melon::nds::input::{NdsKey, NdsKeyMask};
 use crate::melon::nds::Nds;
-// use crate::melon::save;
 use crate::replay::SavestateContextReplay;
 use crate::replay::{Replay, SavestateContext};
 use crate::utils::localize_pathbuf;
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum EmuState {
-    Run,
-    Pause,
-    Stop,
-    Step,
-}
+use crate::EmuStateChange;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum ReplayState {
@@ -41,14 +34,6 @@ pub enum KeyPressAction {
     WriteMainRAM(String),
 }
 
-#[derive(Debug, Default)]
-pub struct Requests {
-    pub savestate_write_request: Option<String>,
-    pub savestate_read_request: Option<String>,
-    pub ram_write_request: Option<String>,
-    pub replay_save_request: bool,
-}
-
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct EmuInput {
     pub key_code: VirtualKeyCode,
@@ -65,10 +50,11 @@ pub enum InputEvent {
 }
 
 pub enum Request {
-    SavestateWrite(PathBuf),
-    SavestateRead(PathBuf),
-    RamWrite(PathBuf),
-    ReplaySave,
+    WriteSavestate(PathBuf),
+    ReadSavestate(PathBuf),
+    WriteRam(PathBuf),
+    WriteReplay,
+    WriteSavedata(PathBuf),
 }
 
 // #[derive(Debug)]
@@ -82,7 +68,6 @@ pub struct Frontend {
     pub nds_input: NdsKeyMask,
     pub cursor: Option<(u8, u8)>,
     pub cursor_pressed: bool,
-    pub state: EmuState,
     pub replay: Option<(Replay, ReplayState)>,
 }
 
@@ -118,12 +103,16 @@ impl Frontend {
             key_modifiers: ModifiersState::empty(),
             cursor: None,
             cursor_pressed: false,
-            state: EmuState::Pause,
             replay,
         }
     }
 
-    pub fn handle_input_event(&mut self, event: InputEvent) {
+    pub fn handle_input_event(
+        &mut self,
+        event: InputEvent,
+        state_rx: &watch::Sender<Option<EmuStateChange>>,
+        request_rx: &mpsc::Sender<Request>,
+    ) {
         match event {
             InputEvent::KeyDown(key_code) => {
                 let modifiers = self.key_modifiers;
@@ -139,29 +128,24 @@ impl Frontend {
                 match emu_key {
                     KeyPressAction::NdsKey(nds_key) => self.nds_input.insert(nds_key.into()),
                     KeyPressAction::PlayPlause => {
-                        let emu_state = &mut self.state;
-                        match *emu_state {
-                            EmuState::Pause | EmuState::Step => *emu_state = EmuState::Run,
-                            EmuState::Run => *emu_state = EmuState::Pause,
-                            EmuState::Stop => {}
-                        }
+                        state_rx.send(Some(EmuStateChange::PlayPause)).unwrap();
                     }
                     KeyPressAction::Step => {
-                        let emu_state = &mut self.state;
-                        match *emu_state {
-                            EmuState::Stop => {}
-                            _ => *emu_state = EmuState::Step,
-                        }
+                        state_rx.send(Some(EmuStateChange::Step)).unwrap();
                     }
                     // TODO: implement these actions
-                    KeyPressAction::Save(_path) => {
-                        // ...
+                    KeyPressAction::Save(path) => {
+                        request_rx.try_send(Request::WriteSavedata(path.into())).unwrap();
                     }
-                    KeyPressAction::ReadSavestate(_path) => {
-                        // self.requests.savestate_read_request = Some(path);
+                    KeyPressAction::ReadSavestate(path) => {
+                        request_rx
+                            .try_send(Request::ReadSavestate(path.into()))
+                            .unwrap();
                     }
-                    KeyPressAction::WriteSavestate(_path) => {
-                        // self.requests.savestate_write_request = Some(path);
+                    KeyPressAction::WriteSavestate(path) => {
+                        request_rx
+                            .try_send(Request::WriteSavestate(path.into()))
+                            .unwrap();
                     }
                     KeyPressAction::ToggleReplayMode => {
                         if let Some(state) = self.replay.as_mut() {
@@ -178,10 +162,10 @@ impl Frontend {
                         }
                     }
                     KeyPressAction::SaveReplay => {
-                        // self.requests.replay_save_request = true;
+                        request_rx.try_send(Request::WriteReplay).unwrap();
                     }
-                    KeyPressAction::WriteMainRAM(_path) => {
-                        // self.requests.ram_write_request = Some(path);
+                    KeyPressAction::WriteMainRAM(path) => {
+                        request_rx.try_send(Request::WriteRam(path.into())).unwrap();
                     }
                 }
             }
@@ -264,7 +248,7 @@ impl Frontend {
         self.bottom_frame = bottom;
     }
 
-    pub fn read_savestate(&mut self, nds: &mut Nds, file: String) {
+    pub fn read_savestate(&mut self, file: String) {
         let localized = localize_pathbuf(file).to_string_lossy().into_owned();
 
         let mut raw: OsString = localized.clone().into();
@@ -287,7 +271,7 @@ impl Frontend {
             (Some(replay), Some(replay_context)) => {
                 if replay_context.name == replay.0.name {
                     replay.0.inputs = replay_context.inputs;
-                    assert!(nds.read_savestate(localized));
+                    assert!(self.nds.read_savestate(localized));
                 } else {
                     println!("The savestate couldn't be loaded. The savestate belongs to a different replay")
                 }
@@ -295,12 +279,12 @@ impl Frontend {
             (Some(_), None) => println!("The savestate couldn't be loaded. There is a replay running, but the savestate doesn't belong to one"),
             (None, Some(_)) => println!("The savestate couldn't be loaded. There is no replay running, and the savestate belongs to a replay"),
             (None, None) => {
-                assert!(nds.read_savestate(localized));
+                assert!(self.nds.read_savestate(localized));
             },
         }
     }
 
-    pub fn write_savestate(&mut self, nds: &mut Nds, file: String) {
+    pub fn write_savestate(&mut self, file: String) {
         let localized = localize_pathbuf(file).to_string_lossy().into_owned();
 
         let mut raw: OsString = localized.clone().into();
@@ -318,6 +302,6 @@ impl Frontend {
         std::fs::write(context_path, context_str)
             .expect("Couldn't write savestate context object to file");
 
-        assert!(nds.write_savestate(localized));
+        assert!(self.nds.write_savestate(localized));
     }
 }

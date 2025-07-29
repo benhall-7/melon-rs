@@ -1,0 +1,228 @@
+default_game_path: null
+default_save_path: save.bin
+timestamp: null
+key_map:
+  # shoulder buttons
+  - input:
+      key_code: P
+      modifiers: null
+    action: !NdsKey R
+  - input:
+      key_code: Q
+      modifiers: null
+    action: !NdsKey L
+
+  # WASD directional pad
+  - input:
+      key_code: W
+      modifiers: null
+    action: !NdsKey Up
+  - input:
+      key_code: A
+      modifiers: null
+    action: !NdsKey Left
+  - input:
+      key_code: S
+      modifiers: null
+    action: !NdsKey Down
+  - input:
+      key_code: D
+      modifiers: null
+    action: !NdsKey Right
+
+  # IJKL buttons
+  - input:
+      key_code: I
+      modifiers: null
+    action: !NdsKey X
+  - input:
+      key_code: J
+      modifiers: null
+    action: !NdsKey Y
+  - input:
+      key_code: K
+      modifiers: null
+    action: !NdsKey B
+  - input:
+      key_code: L
+      modifiers: null
+    action: !NdsKey A
+
+  - input:
+      key_code: Space
+      modifiers: null
+    action: !NdsKey Start
+  - input:
+      key_code: X
+      modifiers: null
+    action: !NdsKey Select
+
+  # emulator pausing/frame-by-frame
+  - input:
+      key_code: Period
+      modifiers: null
+    action: Step
+  - input:
+      key_code: Comma
+      modifiers: null
+    action: PlayPlause
+
+  # write savedata to disk
+  - input:
+      key_code: S
+      modifiers:
+        shift: false
+        ctrl: true
+        alt: false
+        logo: false
+    action: !Save save.bin
+
+  # reading savestates
+  - input:
+      key_code: Numpad1
+      modifiers: null
+    action: !ReadSavestate Savestate1.bin
+  - input:
+      key_code: Numpad2
+      modifiers: null
+    action: !ReadSavestate Savestate2.bin
+  - input:
+      key_code: Numpad3
+      modifiers: null
+    action: !ReadSavestate Savestate3.bin
+  - input:
+      key_code: Numpad4
+      modifiers: null
+    action: !ReadSavestate Savestate4.bin
+  - input:
+      key_code: Numpad5
+      modifiers: null
+    action: !ReadSavestate Savestate5.bin
+  - input:
+      key_code: Numpad6
+      modifiers: null
+    action: !ReadSavestate Savestate6.bin
+  - input:
+      key_code: Numpad7
+      modifiers: null
+    action: !ReadSavestate Savestate7.bin
+  - input:
+      key_code: Numpad8
+      modifiers: null
+    action: !ReadSavestate Savestate8.bin
+  - input:
+      key_code: Numpad9
+      modifiers: null
+    action: !ReadSavestate Savestate9.bin
+  - input:
+      key_code: Numpad0
+      modifiers: null
+    action: !ReadSavestate Savestate10.bin
+
+  # writing savestates
+  - input:
+      key_code: Numpad1
+      modifiers:
+        shift: true
+        ctrl: false
+        alt: false
+        logo: false
+    action: !WriteSavestate Savestate1.bin
+  - input:
+      key_code: Numpad2
+      modifiers:
+        shift: true
+        ctrl: false
+        alt: false
+        logo: false
+    action: !WriteSavestate Savestate2.bin
+  - input:
+      key_code: Numpad3
+      modifiers:
+        shift: true
+        ctrl: false
+        alt: false
+        logo: false
+    action: !WriteSavestate Savestate3.bin
+  - input:
+      key_code: Numpad4
+      modifiers:
+        shift: true
+        ctrl: false
+        alt: false
+        logo: false
+    action: !WriteSavestate Savestate4.bin
+  - input:
+      key_code: Numpad5
+      modifiers:
+        shift: true
+        ctrl: false
+        alt: false
+        logo: false
+    action: !WriteSavestate Savestate5.bin
+  - input:
+      key_code: Numpad6
+      modifiers:
+        shift: true
+        ctrl: false
+        alt: false
+        logo: false
+    action: !WriteSavestate Savestate6.bin
+  - input:
+      key_code: Numpad7
+      modifiers:
+        shift: true
+        ctrl: false
+        alt: false
+        logo: false
+    action: !WriteSavestate Savestate7.bin
+  - input:
+      key_code: Numpad8
+      modifiers:
+        shift: true
+        ctrl: false
+        alt: false
+        logo: false
+    action: !WriteSavestate Savestate8.bin
+  - input:
+      key_code: Numpad9
+      modifiers:
+        shift: true
+        ctrl: false
+        alt: false
+        logo: false
+    action: !WriteSavestate Savestate9.bin
+  - input:
+      key_code: Numpad0
+      modifiers:
+        shift: true
+        ctrl: false
+        alt: false
+        logo: false
+    action: !WriteSavestate Savestate10.bin
+
+  # replay read/write mode
+  - input:
+      key_code: Tab
+      modifiers: null
+    action: ToggleReplayMode
+
+  # replay save
+  - input:
+      key_code: Z
+      modifiers:
+        shift: false
+        ctrl: true
+        alt: false
+        logo: false
+    action: SaveReplay
+
+  # write main RAM to disk (for analysis)
+  - input:
+      key_code: D
+      modifiers:
+        shift: false
+        ctrl: true
+        alt: false
+        logo: false
+    action: !WriteMainRAM ram.bin

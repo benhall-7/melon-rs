@@ -9,7 +9,6 @@ use std::slice;
 use std::sync::{Mutex, MutexGuard, TryLockError};
 use std::thread::{spawn, JoinHandle};
 
-use crate::melon::save::write_save;
 use crate::utils::localize_pathbuf;
 
 #[cxx::bridge]
@@ -268,6 +267,9 @@ mod sys {
         // fn SetupDirectBoot(self: Pin<&mut NDS>);
 
         fn RunFrame(self: Pin<&mut NDS>) -> u32;
+
+        unsafe fn GetNDSSave(&self) -> *const u8;
+        fn GetNDSSaveLength(&self) -> u32;
     }
 
     // Shims stuff
@@ -666,12 +668,38 @@ fn mp_deinit() {}
 fn mp_begin() {}
 fn mp_end() {}
 
+// use once_cell::sync::Lazy;
+// static SAVE_BUFFER: Lazy<Mutex<Vec<u8>>> = Lazy::new(|| Mutex::new(vec![]));
+
+// fn write_save(save_data: &[u8], write_offset: usize, write_len: usize) {
+//     let mut save_buffer = SAVE_BUFFER.lock().unwrap();
+//     if save_data.len() != save_buffer.len() {
+//         *save_buffer = save_data.to_owned();
+//     } else if write_offset + write_len <= save_data.len() {
+//         save_buffer[write_offset..][..write_len]
+//             .clone_from_slice(&save_data[write_offset..][..write_len]);
+//     } else {
+//         save_buffer[write_offset..].clone_from_slice(&save_data[write_offset..]);
+
+//         let overflow_len = (write_offset + write_len - save_data.len()).min(save_data.len());
+//         save_buffer[..overflow_len].clone_from_slice(&save_data[..overflow_len]);
+//     }
+// }
+
+// use std::path::PathBuf;
+// pub fn update_save(path: PathBuf) {
+//     let save_contents = SAVE_BUFFER.lock().unwrap().clone();
+//     std::fs::write(path, save_contents).unwrap();
+// }
+
 unsafe fn write_nds_save(savedata: *const u8, savelen: u32, writeoffset: u32, writelen: u32) {
-    write_save(
-        slice::from_raw_parts(savedata, savelen as usize),
-        writeoffset as usize,
-        writelen as usize,
-    );
+    // why do this when we can just access the save data straight from the NDS?
+
+    // write_save(
+    //     slice::from_raw_parts(savedata, savelen as usize),
+    //     writeoffset as usize,
+    //     writelen as usize,
+    // );
 }
 
 use cxx::CxxString;

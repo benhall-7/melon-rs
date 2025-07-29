@@ -1,21 +1,15 @@
-use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use clap::Parser;
 use glium::glutin::{self, event::Event};
 use tokio::sync::{mpsc, watch};
-use winit::event::{
-    ElementState, KeyboardInput, ModifiersState, MouseButton, VirtualKeyCode, WindowEvent,
-};
+use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::event_loop::ControlFlow;
 
 use crate::audio::Audio;
 use crate::config::{Config, ConfigFile, StartParams};
-use crate::frontend::{
-    EmuInput, EmuState, Frontend, InputEvent, KeyPressAction, ReplayState, Request,
-};
+use crate::frontend::{Frontend, InputEvent, Request};
 use crate::window::{draw, get_draw_data};
 
 pub mod args;
@@ -23,18 +17,33 @@ pub mod audio;
 pub mod config;
 pub mod events;
 pub mod frontend;
-pub mod game_thread;
 pub mod melon;
 pub mod replay;
 pub mod utils;
 pub mod window;
 
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum EmuState {
+    Running,
+    Paused,
+    Stepping,
+    Stopped,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum EmuStateChange {
+    PlayPause,
+    Step,
+    Stop,
+}
+
 #[derive(Clone)]
 pub struct EmulatorHandle {
     pub core: Arc<Mutex<Frontend>>,
+    pub state: EmuState,
     pub input_tx: mpsc::Sender<InputEvent>,
     pub request_tx: mpsc::Sender<Request>,
-    pub state_tx: watch::Sender<EmuState>,
+    pub state_tx: watch::Sender<Option<EmuStateChange>>,
 }
 
 #[tokio::main]
@@ -80,12 +89,14 @@ async fn main() {
         replay,
     )));
 
+    // TODO: figure out the ownership model for all the receivers, senders, and emulator handle
     let (input_tx, mut input_rx) = mpsc::channel::<InputEvent>(128);
-    let (request_tx, request_rx) = mpsc::channel::<Request>(16);
-    let (state_tx, state_rx) = watch::channel(EmuState::Run);
+    let (request_tx, mut request_rx) = mpsc::channel::<Request>(16);
+    let (state_tx, mut state_rx) = watch::channel(None);
 
-    let emulator = EmulatorHandle {
+    let mut emulator = EmulatorHandle {
         core: core.clone(),
+        state: EmuState::Paused,
         input_tx: input_tx.clone(),
         request_tx: request_tx.clone(),
         state_tx: state_tx.clone(),
@@ -97,8 +108,72 @@ async fn main() {
         loop {
             timer.tick().await;
 
-            if *state_rx.borrow() == EmuState::Run {
-                tick_emulator(&core, &mut input_rx, &state_tx).await;
+            if state_rx.has_changed().unwrap() {
+                let state_change = *state_rx.borrow_and_update();
+                match state_change {
+                    Some(EmuStateChange::PlayPause) => match emulator.state {
+                        EmuState::Running => emulator.state = EmuState::Paused,
+                        EmuState::Paused => emulator.state = EmuState::Running,
+                        EmuState::Stepping => emulator.state = EmuState::Running,
+                        EmuState::Stopped => {}
+                    },
+                    Some(EmuStateChange::Step) => match emulator.state {
+                        EmuState::Running => emulator.state = EmuState::Stepping,
+                        EmuState::Paused => emulator.state = EmuState::Stepping,
+                        EmuState::Stepping => emulator.state = EmuState::Stepping,
+                        EmuState::Stopped => {}
+                    },
+                    Some(EmuStateChange::Stop) => emulator.state = EmuState::Stopped,
+                    _ => {}
+                }
+            }
+
+            while let Ok(req) = request_rx.try_recv() {
+                let mut guard = core.lock().unwrap();
+                match req {
+                    Request::WriteRam(path_buf) => {
+                        let ram = guard.nds.main_ram();
+                        std::fs::write(&path_buf, ram).unwrap();
+                        println!("main RAM written to {}", path_buf.display());
+                    }
+                    Request::WriteSavedata(path_buf) => {
+                        let savedata= guard.nds.save_data();
+                        std::fs::write(&path_buf, savedata).unwrap();
+                        println!("savedata written to {}", path_buf.display());
+                    }
+                    Request::WriteSavestate(path_buf) => {
+                        guard.write_savestate(path_buf.to_string_lossy().into_owned());
+                        println!("savestate written to {}", path_buf.display());
+                    }
+                    Request::ReadSavestate(path_buf) => {
+                        guard.read_savestate(path_buf.to_string_lossy().into_owned());
+                        println!("savestate read from {}", path_buf.display());
+                    }
+                    Request::WriteReplay => {
+                        if let Some(replay) = &guard.replay {
+                            let file = replay.0.name.clone();
+                            std::fs::write(file, serde_yaml::to_string(&replay.0).unwrap())
+                                .unwrap();
+                            println!("replay written to {}", replay.0.name.to_string_lossy());
+                        }
+                    }
+                }
+            }
+
+            match emulator.state {
+                EmuState::Running => {
+                    update_inputs(&core, &mut input_rx, &state_tx, &request_tx);
+                    tick_emulator(&core);
+                }
+                EmuState::Paused => {
+                    update_inputs(&core, &mut input_rx, &state_tx, &request_tx);
+                }
+                EmuState::Stepping => {
+                    update_inputs(&core, &mut input_rx, &state_tx, &request_tx);
+                    tick_emulator(&core);
+                    emulator.state = EmuState::Paused;
+                }
+                EmuState::Stopped => break,
             }
         }
     });
@@ -152,10 +227,17 @@ async fn main() {
                     _ => {}
                 },
                 WindowEvent::CursorMoved { position, .. } => {
-                    println!("position: {},{}", position.x, position.y);
+                    if position.y >= 192.0 {
+                        // TODO: check if scaling the screen breaks anything
+                        let x = (position.x as u32).clamp(0, 255) as u8;
+                        let y = (position.y as u32 - 192).clamp(0, 255) as u8;
+                        input_tx
+                            .try_send(InputEvent::CursorMove(Some((x, y))))
+                            .unwrap();
+                    }
                 }
                 WindowEvent::CloseRequested => {
-                    emulator.state_tx.send(EmuState::Stop).unwrap();
+                    emulator.state_tx.send(Some(EmuStateChange::Stop)).unwrap();
                     *control_flow = ControlFlow::Exit;
                 }
                 _ => {}
@@ -164,65 +246,21 @@ async fn main() {
     });
 }
 
-async fn tick_emulator(
+fn update_inputs(
     core: &Arc<Mutex<Frontend>>,
     input_rx: &mut mpsc::Receiver<InputEvent>,
-    state_tx: &watch::Sender<EmuState>,
+    state_tx: &watch::Sender<Option<EmuStateChange>>,
+    request_tx: &mpsc::Sender<Request>,
 ) {
-    // Apply input events
     while let Ok(event) = input_rx.try_recv() {
         core.lock()
-            .map(|mut core| core.handle_input_event(event))
+            .map(|mut core| core.handle_input_event(event, state_tx, request_tx))
             .expect("failed to access core lock");
     }
+}
 
+fn tick_emulator(core: &Arc<Mutex<Frontend>>) {
     core.lock()
         .map(|mut core| core.run_frame())
         .expect("failed to access core lock");
 }
-
-// fn do_requests_old() {
-//     self.emu
-//         .lock()
-//         .map(|mut emu| {
-//             if let Some(read_path) = emu.requests.savestate_read_request.take() {
-//                 emu.read_savestate(&mut self.ds, read_path);
-//             }
-//         })
-//         .unwrap();
-
-//     self.emu
-//         .lock()
-//         .map(|mut emu| {
-//             if let Some(write_path) = emu.requests.savestate_write_request.take() {
-//                 emu.write_savestate(&mut self.ds, write_path);
-//             }
-//         })
-//         .unwrap();
-
-//     self.emu
-//         .lock()
-//         .map(|mut emu| {
-//             if let Some(write_path) = emu.requests.ram_write_request.take() {
-//                 let ram = self.ds.main_ram();
-//                 std::fs::write(write_path, ram).unwrap();
-//                 println!("main RAM written to ram.bin");
-//             }
-//         })
-//         .unwrap();
-
-//     self.emu
-//         .lock()
-//         .map(|mut emu| {
-//             if emu.requests.replay_save_request {
-//                 emu.requests.replay_save_request = false;
-
-//                 if let Some(replay) = &emu.replay {
-//                     let file = replay.0.name.clone();
-//                     std::fs::write(file, serde_yaml::to_string(&replay.0).unwrap()).unwrap();
-//                     println!("saved replay to {}", replay.0.name.to_string_lossy());
-//                 }
-//             }
-//         })
-//         .unwrap();
-// }

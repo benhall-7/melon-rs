@@ -160,9 +160,13 @@ impl Nds {
         }
     }
 
-    // fn init_renderer(&mut self) {
-    //     sys::gpu::InitRenderer(0);
-    // }
+    pub fn save_data(&self) -> &[u8] {
+        unsafe {
+            let len = self.0.GetNDSSaveLength();
+            let data = self.0.GetNDSSave();
+            std::slice::from_raw_parts(data, len as usize)
+        }
+    }
 }
 
 unsafe impl Send for Nds {}
