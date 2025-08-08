@@ -250,7 +250,6 @@ impl Frontend {
 
     pub fn read_savestate(&mut self, file: String) {
         let localized = localize_pathbuf(file).to_string_lossy().into_owned();
-        println!("{localized}");
 
         let mut raw: OsString = localized.clone().into();
         raw.push(".context");
