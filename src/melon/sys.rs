@@ -1,5 +1,6 @@
 // Abandon hope, all ye who enter here
 #![allow(clippy::missing_safety_doc)]
+#![allow(unused_variables)]
 
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, Cursor, Read, Seek, SeekFrom, Write};
@@ -621,7 +622,6 @@ unsafe fn close_file(handle: *mut NdsFileHandle) -> bool {
 // fn log() {}
 
 fn lan_init() -> bool {
-    // TODO: provide an event subscription
     false
 }
 
