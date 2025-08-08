@@ -15,7 +15,7 @@ namespace Shims
     bool Copy_Framebuffers(const NDS &nds, u8 *dest, bool index);
     s32 SPU_ReadOutput(NDS &nds, s16 *data, s32 samples);
 
-    bool ReadSavestate(NDS &nds, const u8 *source, s32 len);
+    bool ReadSavestate(NDS &nds, u8 *source, s32 len);
     std::unique_ptr<std::vector<u8>> WriteSavestate(NDS &nds);
 
     u32 CurrentFrame(const NDS &nds);

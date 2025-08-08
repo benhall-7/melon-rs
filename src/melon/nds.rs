@@ -1,7 +1,7 @@
 use std::io::Write;
 
 use chrono::{DateTime, Datelike, Timelike, Utc};
-use cxx::{CxxVector, UniquePtr};
+use cxx::UniquePtr;
 
 use super::sys;
 
@@ -119,18 +119,20 @@ impl Nds {
     }
 
     pub fn read_savestate(&mut self, file: String) -> bool {
-        let contents = std::fs::read(file).expect("Couldn't open savestate file");
-        unsafe { sys::ReadSavestate(self.0.pin_mut(), contents.as_ptr(), contents.len() as i32) }
+        // code smell: possibly unnecessary mut. The C++ signatures requires a mutable array because
+        // the same function is used for both reading and writing savestates.
+        let mut contents = std::fs::read(file).expect("Couldn't open savestate file");
+        println!("content bytes: {:X} {:X} {:X} {:X}", contents[0], contents[1], contents[2], contents[3]);
+        unsafe { sys::ReadSavestate(self.0.pin_mut(), contents.as_mut_ptr(), contents.len() as i32) }
     }
 
     pub fn write_savestate(&mut self, file: String) -> bool {
         let mut handle = std::fs::File::create(file).expect("Couldn't create/open savestate file");
-        let data: UniquePtr<CxxVector<u8>> = CxxVector::new();
         unsafe {
             let result = sys::WriteSavestate(self.0.pin_mut());
             if result.len() > 0 {
                 handle
-                    .write_all((*data).as_slice())
+                    .write_all(result.as_slice())
                     .expect("Couldn't write contents of savestate");
                 true
             } else {

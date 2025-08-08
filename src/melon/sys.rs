@@ -283,7 +283,7 @@ mod sys {
         pub unsafe fn Copy_Framebuffers(nds: &NDS, dest: *mut u8, index: bool) -> bool;
         pub unsafe fn SPU_ReadOutput(nds: Pin<&mut NDS>, data: *mut i16, samples: i32) -> i32;
 
-        pub unsafe fn ReadSavestate(nds: Pin<&mut NDS>, contents: *const u8, len: i32) -> bool;
+        pub unsafe fn ReadSavestate(nds: Pin<&mut NDS>, contents: *mut u8, len: i32) -> bool;
         pub unsafe fn WriteSavestate(nds: Pin<&mut NDS>) -> UniquePtr<CxxVector<u8>>;
 
         pub unsafe fn CurrentFrame(nds: &NDS) -> u32;

@@ -79,124 +79,124 @@ key_map:
 
   # reading savestates
   - input:
-      key_code: Numpad1
+      key_code: Key1
       modifiers: null
     action: !ReadSavestate Savestate1.bin
   - input:
-      key_code: Numpad2
+      key_code: Key2
       modifiers: null
     action: !ReadSavestate Savestate2.bin
   - input:
-      key_code: Numpad3
+      key_code: Key3
       modifiers: null
     action: !ReadSavestate Savestate3.bin
   - input:
-      key_code: Numpad4
+      key_code: Key4
       modifiers: null
     action: !ReadSavestate Savestate4.bin
   - input:
-      key_code: Numpad5
+      key_code: Key5
       modifiers: null
     action: !ReadSavestate Savestate5.bin
   - input:
-      key_code: Numpad6
+      key_code: Key6
       modifiers: null
     action: !ReadSavestate Savestate6.bin
   - input:
-      key_code: Numpad7
+      key_code: Key7
       modifiers: null
     action: !ReadSavestate Savestate7.bin
   - input:
-      key_code: Numpad8
+      key_code: Key8
       modifiers: null
     action: !ReadSavestate Savestate8.bin
   - input:
-      key_code: Numpad9
+      key_code: Key9
       modifiers: null
     action: !ReadSavestate Savestate9.bin
   - input:
-      key_code: Numpad0
+      key_code: Key0
       modifiers: null
     action: !ReadSavestate Savestate10.bin
 
   # writing savestates
   - input:
-      key_code: Numpad1
+      key_code: Key1
       modifiers:
-        shift: true
-        ctrl: false
+        shift: false
+        ctrl: true
         alt: false
         logo: false
     action: !WriteSavestate Savestate1.bin
   - input:
-      key_code: Numpad2
+      key_code: Key2
       modifiers:
-        shift: true
-        ctrl: false
+        shift: false
+        ctrl: true
         alt: false
         logo: false
     action: !WriteSavestate Savestate2.bin
   - input:
-      key_code: Numpad3
+      key_code: Key3
       modifiers:
-        shift: true
-        ctrl: false
+        shift: false
+        ctrl: true
         alt: false
         logo: false
     action: !WriteSavestate Savestate3.bin
   - input:
-      key_code: Numpad4
+      key_code: Key4
       modifiers:
-        shift: true
-        ctrl: false
+        shift: false
+        ctrl: true
         alt: false
         logo: false
     action: !WriteSavestate Savestate4.bin
   - input:
-      key_code: Numpad5
+      key_code: Key5
       modifiers:
-        shift: true
-        ctrl: false
+        shift: false
+        ctrl: true
         alt: false
         logo: false
     action: !WriteSavestate Savestate5.bin
   - input:
-      key_code: Numpad6
+      key_code: Key6
       modifiers:
-        shift: true
-        ctrl: false
+        shift: false
+        ctrl: true
         alt: false
         logo: false
     action: !WriteSavestate Savestate6.bin
   - input:
-      key_code: Numpad7
+      key_code: Key7
       modifiers:
-        shift: true
-        ctrl: false
+        shift: false
+        ctrl: true
         alt: false
         logo: false
     action: !WriteSavestate Savestate7.bin
   - input:
-      key_code: Numpad8
+      key_code: Key8
       modifiers:
-        shift: true
-        ctrl: false
+        shift: false
+        ctrl: true
         alt: false
         logo: false
     action: !WriteSavestate Savestate8.bin
   - input:
-      key_code: Numpad9
+      key_code: Key9
       modifiers:
-        shift: true
-        ctrl: false
+        shift: false
+        ctrl: true
         alt: false
         logo: false
     action: !WriteSavestate Savestate9.bin
   - input:
-      key_code: Numpad0
+      key_code: Key0
       modifiers:
-        shift: true
-        ctrl: false
+        shift: false
+        ctrl: true
         alt: false
         logo: false
     action: !WriteSavestate Savestate10.bin

@@ -38,9 +38,10 @@ namespace Shims
         return nds.SPU.ReadOutput(data, samples);
     }
 
-    bool ReadSavestate(NDS &nds, const u8 *source, s32 len)
+    bool ReadSavestate(NDS &nds, u8 *source, s32 len)
     {
-        Savestate state(&source, len, false);
+        // note to self: "&source" is a pointer to a pointer, this screwed me up a bit
+        Savestate state(source, len, false);
         return nds.DoSavestate(&state);
     }
 
