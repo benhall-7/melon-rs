@@ -469,6 +469,7 @@ unsafe fn mutex_free(mutex: *mut NdsMutex) {
     drop_in_place(mutex);
 }
 
+#[allow(dead_code)]
 struct NdsFileHandle {
     handle: File,
     cursor: Cursor<Vec<u8>>,

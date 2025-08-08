@@ -103,6 +103,8 @@ impl Actor {
     }
 }
 
+// until I figure out where to implement this:
+#[allow(dead_code)]
 fn check_memory(ram: &[u8]) {
     // use std::io::{Seek, SeekFrom};
     let mut mem_cursor = MemCursor::new(ram, MAIN_RAM_OFFSET as u64);
