@@ -261,8 +261,8 @@ mod sys {
         fn SetKeyMask(self: Pin<&mut NDS>, mask: u32);
         fn TouchScreen(self: Pin<&mut NDS>, x: u16, y: u16);
         fn ReleaseScreen(self: Pin<&mut NDS>);
-        // fn IsLidClosed() -> bool;
-        // fn SetLidClosed(closed: bool);
+        fn IsLidClosed(&self) -> bool;
+        fn SetLidClosed(self: Pin<&mut NDS>, closed: bool);
 
         fn NeedsDirectBoot(&self) -> bool;
         // fn SetupDirectBoot(self: Pin<&mut NDS>);

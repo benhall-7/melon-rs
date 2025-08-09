@@ -137,7 +137,7 @@ async fn main() {
                         println!("main RAM written to {}", path_buf.display());
                     }
                     Request::WriteSavedata(path_buf) => {
-                        let savedata= guard.nds.save_data();
+                        let savedata = guard.nds.save_data();
                         std::fs::write(&path_buf, savedata).unwrap();
                         println!("savedata written to {}", path_buf.display());
                     }

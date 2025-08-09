@@ -6,56 +6,61 @@ key_map:
   - input:
       key_code: P
       modifiers: null
-    action: !NdsKey R
+    action: !NdsAction R
   - input:
       key_code: Q
       modifiers: null
-    action: !NdsKey L
+    action: !NdsAction L
 
   # WASD directional pad
   - input:
       key_code: W
       modifiers: null
-    action: !NdsKey Up
+    action: !NdsAction Up
   - input:
       key_code: A
       modifiers: null
-    action: !NdsKey Left
+    action: !NdsAction Left
   - input:
       key_code: S
       modifiers: null
-    action: !NdsKey Down
+    action: !NdsAction Down
   - input:
       key_code: D
       modifiers: null
-    action: !NdsKey Right
+    action: !NdsAction Right
 
   # IJKL buttons
   - input:
       key_code: I
       modifiers: null
-    action: !NdsKey X
+    action: !NdsAction X
   - input:
       key_code: J
       modifiers: null
-    action: !NdsKey Y
+    action: !NdsAction Y
   - input:
       key_code: K
       modifiers: null
-    action: !NdsKey B
+    action: !NdsAction B
   - input:
       key_code: L
       modifiers: null
-    action: !NdsKey A
+    action: !NdsAction A
 
   - input:
       key_code: Space
       modifiers: null
-    action: !NdsKey Start
+    action: !NdsAction Start
   - input:
       key_code: X
       modifiers: null
-    action: !NdsKey Select
+    action: !NdsAction Select
+
+  - input:
+      key_code: Slash
+      modifiers: null
+    action: !NdsAction OpenCloseLid
 
   # emulator pausing/frame-by-frame
   - input:
@@ -209,7 +214,7 @@ key_map:
 
   # replay save
   - input:
-      key_code: Z
+      key_code: R
       modifiers:
         shift: false
         ctrl: true

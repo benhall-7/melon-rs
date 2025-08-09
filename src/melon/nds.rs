@@ -40,13 +40,13 @@ impl Nds {
         self.0.pin_mut().ReleaseScreen();
     }
 
-    // pub fn is_lid_closed(&self) -> bool {
-    //     sys::nds::IsLidClosed()
-    // }
+    pub fn is_lid_closed(&self) -> bool {
+        self.0.IsLidClosed()
+    }
 
-    // pub fn set_lid_closed(&mut self, closed: bool) {
-    //     sys::nds::SetLidClosed(closed);
-    // }
+    pub fn set_lid_closed(&mut self, closed: bool) {
+        self.0.pin_mut().SetLidClosed(closed);
+    }
 
     pub fn set_nds_cart(&mut self, rom: &[u8], save: Option<&[u8]>) {
         unsafe {
@@ -122,8 +122,17 @@ impl Nds {
         // code smell: possibly unnecessary mut. The C++ signatures requires a mutable array because
         // the same function is used for both reading and writing savestates.
         let mut contents = std::fs::read(file).expect("Couldn't open savestate file");
-        println!("content bytes: {:X} {:X} {:X} {:X}", contents[0], contents[1], contents[2], contents[3]);
-        unsafe { sys::ReadSavestate(self.0.pin_mut(), contents.as_mut_ptr(), contents.len() as i32) }
+        println!(
+            "content bytes: {:X} {:X} {:X} {:X}",
+            contents[0], contents[1], contents[2], contents[3]
+        );
+        unsafe {
+            sys::ReadSavestate(
+                self.0.pin_mut(),
+                contents.as_mut_ptr(),
+                contents.len() as i32,
+            )
+        }
     }
 
     pub fn write_savestate(&mut self, file: String) -> bool {

@@ -4,12 +4,9 @@ use chrono::{DateTime, Utc};
 use glium::glutin::event::{ModifiersState, VirtualKeyCode};
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    args::{Args, Commands},
-    frontend::{KeyPressAction, EmuInput, ReplayState},
-    melon::nds::input::NdsKey,
-    replay::{Replay, ReplaySource},
-};
+use crate::args::{Args, Commands};
+use crate::frontend::{EmuInput, KeyPressAction, NdsAction, ReplayState};
+use crate::replay::{Replay, ReplaySource};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Config {
@@ -102,18 +99,41 @@ impl Default for Config {
             default_save_path: None,
             timestamp: None,
             key_map: vec![
-                (VirtualKeyCode::W, KeyPressAction::NdsKey(NdsKey::Up)),
-                (VirtualKeyCode::A, KeyPressAction::NdsKey(NdsKey::Left)),
-                (VirtualKeyCode::S, KeyPressAction::NdsKey(NdsKey::Down)),
-                (VirtualKeyCode::D, KeyPressAction::NdsKey(NdsKey::Right)),
-                (VirtualKeyCode::I, KeyPressAction::NdsKey(NdsKey::X)),
-                (VirtualKeyCode::J, KeyPressAction::NdsKey(NdsKey::Y)),
-                (VirtualKeyCode::K, KeyPressAction::NdsKey(NdsKey::B)),
-                (VirtualKeyCode::L, KeyPressAction::NdsKey(NdsKey::A)),
-                (VirtualKeyCode::Q, KeyPressAction::NdsKey(NdsKey::L)),
-                (VirtualKeyCode::P, KeyPressAction::NdsKey(NdsKey::R)),
-                (VirtualKeyCode::Space, KeyPressAction::NdsKey(NdsKey::Start)),
-                (VirtualKeyCode::X, KeyPressAction::NdsKey(NdsKey::Select)),
+                (VirtualKeyCode::W, KeyPressAction::NdsAction(NdsAction::Up)),
+                (
+                    VirtualKeyCode::A,
+                    KeyPressAction::NdsAction(NdsAction::Left),
+                ),
+                (
+                    VirtualKeyCode::S,
+                    KeyPressAction::NdsAction(NdsAction::Down),
+                ),
+                (
+                    VirtualKeyCode::D,
+                    KeyPressAction::NdsAction(NdsAction::Right),
+                ),
+                (VirtualKeyCode::I, KeyPressAction::NdsAction(NdsAction::X)),
+                (VirtualKeyCode::J, KeyPressAction::NdsAction(NdsAction::Y)),
+                (VirtualKeyCode::K, KeyPressAction::NdsAction(NdsAction::B)),
+                (VirtualKeyCode::L, KeyPressAction::NdsAction(NdsAction::A)),
+                (VirtualKeyCode::Q, KeyPressAction::NdsAction(NdsAction::L)),
+                (VirtualKeyCode::P, KeyPressAction::NdsAction(NdsAction::R)),
+                (
+                    VirtualKeyCode::Space,
+                    KeyPressAction::NdsAction(NdsAction::Start),
+                ),
+                (
+                    VirtualKeyCode::X,
+                    KeyPressAction::NdsAction(NdsAction::Select),
+                ),
+                (
+                    VirtualKeyCode::X,
+                    KeyPressAction::NdsAction(NdsAction::OpenCloseLid),
+                ),
+                (
+                    VirtualKeyCode::Slash,
+                    KeyPressAction::NdsAction(NdsAction::OpenCloseLid),
+                ),
                 (VirtualKeyCode::Comma, KeyPressAction::PlayPlause),
                 (VirtualKeyCode::Period, KeyPressAction::Step),
             ]

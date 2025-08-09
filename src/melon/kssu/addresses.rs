@@ -1,4 +1,3 @@
-
 pub const MAIN_RAM_OFFSET: u32 = 0x0200_0000;
 pub const RNG: u32 = 0x0204_219c;
 

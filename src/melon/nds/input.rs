@@ -2,10 +2,28 @@ use bitflags::bitflags;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct NdsInputState {
+    pub keys: NdsKeyMask,
+    pub touch: Option<(u8, u8)>,
+    pub lid_changed: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum NdsInput {
+    KeyPress(NdsKey),
+    KeyRelease(NdsKey),
+    TouchScreen((u8, u8)),
+    ReleaseScreen,
+    OpenCloseLid,
+    // TODO: mic and camera inputs?
+    // But, that would be hard to save replays for...
+    // IDEA: separate replay file for this, with special encoding?
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum NdsKeyboardInput {
     Key(NdsKey),
-    Stylus((u8, u8)),
-    // TODO: lid open/close, mic, power button?
+    OpenCloseLid,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -25,7 +43,7 @@ pub enum NdsKey {
 }
 
 bitflags! {
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
     pub struct NdsKeyMask: u32 {
         const A = 0b0000_0000_0001;
         const B = 0b0000_0000_0010;
@@ -39,6 +57,44 @@ bitflags! {
         const L = 0b0010_0000_0000;
         const X = 0b0100_0000_0000;
         const Y = 0b1000_0000_0000;
+    }
+}
+
+impl NdsInputState {
+    pub fn new() -> Self {
+        NdsInputState {
+            keys: NdsKeyMask::empty(),
+            touch: None,
+            lid_changed: false,
+        }
+    }
+
+    pub fn register_input(&mut self, input: NdsInput) {
+        match input {
+            NdsInput::KeyPress(key) => self.keys.insert(key.into()),
+            NdsInput::KeyRelease(key) => self.keys.remove(key.into()),
+            NdsInput::TouchScreen((x, y)) => self.touch = Some((x, y)),
+            NdsInput::ReleaseScreen => self.touch = None,
+            // TODO, do I change self.lid_open as well, or wait until the frame to change that?
+            NdsInput::OpenCloseLid => self.lid_changed = true,
+        }
+    }
+}
+
+impl NdsKeyboardInput {
+    pub fn press(self) -> Option<NdsInput> {
+        match self {
+            NdsKeyboardInput::Key(key) => Some(NdsInput::KeyPress(key)),
+            NdsKeyboardInput::OpenCloseLid => Some(NdsInput::OpenCloseLid),
+        }
+    }
+
+    pub fn release(self) -> Option<NdsInput> {
+        match self {
+            NdsKeyboardInput::Key(key) => Some(NdsInput::KeyPress(key)),
+            // releasing the button has no function
+            NdsKeyboardInput::OpenCloseLid => None,
+        }
     }
 }
 

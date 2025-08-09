@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::melon::nds::input::NdsInputState;
+
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Replay {
     pub name: PathBuf,
@@ -11,7 +13,7 @@ pub struct Replay {
     // inputs are determined by a 32-bit bitfield and we can
     // pull it straight from melonDS
     // TODO: this only makes sense for button presses, not screen clicks, lid closing, etc
-    pub inputs: Vec<u32>,
+    pub inputs: Vec<NdsInputState>,
 }
 
 /// Replays could realistically be played back in 3 ways:
@@ -21,7 +23,7 @@ pub struct Replay {
 /// Using a save file is preferred. Starting a replay from a savestate
 /// makes it not possible to prove if game memory was tampered with,
 /// while having no consistent source is likely to cause desyncs.
-/// 
+///
 /// TODO: implement more than just save file recordings
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum ReplaySource {
@@ -46,5 +48,5 @@ pub struct SavestateContext {
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct SavestateContextReplay {
     pub name: PathBuf,
-    pub inputs: Vec<u32>,
+    pub inputs: Vec<NdsInputState>,
 }
