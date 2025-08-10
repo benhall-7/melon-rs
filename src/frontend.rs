@@ -229,6 +229,9 @@ impl Frontend {
 
         self.nds.run_frame();
 
+        // something feels off about having this here...
+        self.nds_input.lid_changed = false;
+
         self.update_audio();
         self.update_framebuffers();
     }

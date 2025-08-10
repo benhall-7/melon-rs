@@ -91,7 +91,7 @@ impl NdsKeyboardInput {
 
     pub fn release(self) -> Option<NdsInput> {
         match self {
-            NdsKeyboardInput::Key(key) => Some(NdsInput::KeyPress(key)),
+            NdsKeyboardInput::Key(key) => Some(NdsInput::KeyRelease(key)),
             // releasing the button has no function
             NdsKeyboardInput::OpenCloseLid => None,
         }
