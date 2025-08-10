@@ -34,7 +34,7 @@ pub enum KeyPressAction {
     WriteMainRAM(String),
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
 pub enum NdsAction {
     // NDS buttons
     A,
@@ -53,12 +53,13 @@ pub enum NdsAction {
     OpenCloseLid,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize)]
 pub struct EmuInput {
     pub key_code: VirtualKeyCode,
     pub modifiers: ModifiersState,
 }
 
+#[derive(Debug, PartialEq, Clone)]
 pub enum InputEvent {
     KeyDown(VirtualKeyCode),
     KeyUp(VirtualKeyCode),
@@ -68,6 +69,7 @@ pub enum InputEvent {
     KeyModifierChange(ModifiersState),
 }
 
+#[derive(Debug, PartialEq, Clone)]
 pub enum Request {
     WriteSavestate(PathBuf),
     ReadSavestate(PathBuf),
@@ -86,8 +88,6 @@ pub struct Frontend {
     pub key_modifiers: ModifiersState,
     pub nds_input: NdsInputState,
     pub cursor: Option<(u8, u8)>,
-    // maybe unnecessary
-    pub cursor_pressed: bool,
     pub replay: Option<(Replay, ReplayState)>,
 }
 
@@ -122,7 +122,6 @@ impl Frontend {
             nds_input: NdsInputState::new(),
             key_modifiers: ModifiersState::empty(),
             cursor: None,
-            cursor_pressed: false,
             replay,
         }
     }
@@ -216,8 +215,8 @@ impl Frontend {
                 }
             }
             InputEvent::CursorMove(coord) => self.cursor = coord,
-            InputEvent::MouseDown => self.cursor_pressed = true,
-            InputEvent::MouseUp => self.cursor_pressed = false,
+            InputEvent::MouseDown => self.nds_input.touch = self.cursor,
+            InputEvent::MouseUp => self.nds_input.touch = None,
             InputEvent::KeyModifierChange(mods) => self.key_modifiers = mods,
         }
     }

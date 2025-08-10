@@ -222,7 +222,7 @@ async fn main() {
                 WindowEvent::MouseInput { state, button, .. } => match button {
                     MouseButton::Left => match state {
                         ElementState::Pressed => input_tx.try_send(InputEvent::MouseDown).unwrap(),
-                        ElementState::Released => input_tx.try_send(InputEvent::MouseDown).unwrap(),
+                        ElementState::Released => input_tx.try_send(InputEvent::MouseUp).unwrap(),
                     },
                     _ => {}
                 },
