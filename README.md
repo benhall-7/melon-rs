@@ -8,14 +8,15 @@ This code is licensed under GPL v3. To understand the terms, review the `LICENSE
 
 ## features
 
-- Smooth 60fps emulation (audio included!)
+- Buttery smooth 60fps emulation
+- Input configurability (via the `config.yml` file)
+- Touchsceen support
+- Save file loading
 - Play/pause button
 - Frame step button
-- Save file loading
-- Input configurability (via the `config.yml` file)
 - Savestate support
-- Determinism (AKA emulated time)
-- Input recording and playback (janky)
+- Deterministic emulation
+- Input recording and playback
 
 ## games
 
@@ -23,12 +24,12 @@ So far, only Kirby Super Star Ultra has been tested, as this is the only game I 
 
 ## todo
 
-- Input recording and playback (not janky)
-- Touch screen support
+- Video/audio encoding
+- Sticky keys (eliminate missed inputs)
 - Scripting environment
 - Code hooking
-- Debugging support (is this possible?)
+- Debugging support (is it possible?)
 
 ## caveats
 
-You might have to install the melonDS prerequisites before attempting to compile. I've only run this on mac. It's likely to work on linux too, and windows is a toss-up.
+You might have to install the melonDS prerequisites before attempting to compile. I've run this on macOS and linux. Windows probably works too.
