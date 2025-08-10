@@ -1,6 +1,15 @@
 use bitflags::bitflags;
 use serde::{Deserialize, Serialize};
 
+// CRITICISM
+// The way inputs work is a little weird. Since the DS runs at 60fps, you usually don't run into
+// problems. but theoretically, if you input and release an input within a frame boundary, the input
+// will be skipped. This is because the emulator will send a both "press" event, followed by a
+// "release event", which then nullifies it. Ideally, inputs should be cleared only when the next
+// frame passes (paused is 60fps too). This idea can be extended for TAS making: we can enable a
+// kind of "sticky" keys mode that remembers key presses until you run the frame, so you don't have
+// to hold a bunch of things down at once while frame skipping.
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct NdsInputState {
     pub keys: NdsKeyMask,
