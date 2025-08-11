@@ -232,7 +232,7 @@ async fn main() {
                         let x = (position.x as u32).clamp(0, 255) as u8;
                         let y = (position.y as u32 - 192).clamp(0, 255) as u8;
                         input_tx
-                            .try_send(InputEvent::CursorMove(Some((x, y))))
+                            .try_send(InputEvent::CursorMove(x, y))
                             .unwrap();
                     }
                 }

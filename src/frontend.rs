@@ -63,7 +63,7 @@ pub struct KeyCombination {
 pub enum InputEvent {
     KeyDown(VirtualKeyCode),
     KeyUp(VirtualKeyCode),
-    CursorMove(Option<(u8, u8)>),
+    CursorMove(u8, u8),
     MouseDown,
     MouseUp,
     KeyModifierChange(ModifiersState),
@@ -149,9 +149,8 @@ impl Frontend {
 
                 match emu_input {
                     EmuInput::NdsAction(nds_action) => {
-                        NdsKeyboardInput::from(nds_action)
-                            .press()
-                            .map(|input| self.nds_input.register_input(input));
+                        let input = NdsKeyboardInput::from(nds_action).press();
+                        self.nds_input.register_input(input);
                     }
                     EmuInput::PlayPlause => {
                         state_rx.send(Some(EmuStateChange::PlayPause)).unwrap();
@@ -212,7 +211,15 @@ impl Frontend {
                     _ => {}
                 }
             }
-            InputEvent::CursorMove(coord) => self.cursor = coord,
+            InputEvent::CursorMove(x, y) => {
+                let coord = (x, y);
+                self.cursor = Some(coord);
+                // dragging cursor while clicked
+                self.nds_input
+                    .touch
+                    .as_mut()
+                    .map(|nds_touch| *nds_touch = coord);
+            }
             InputEvent::MouseDown => self.nds_input.touch = self.cursor,
             InputEvent::MouseUp => self.nds_input.touch = None,
             InputEvent::KeyModifierChange(mods) => self.key_modifiers = mods,

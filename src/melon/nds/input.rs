@@ -91,10 +91,10 @@ impl NdsInputState {
 }
 
 impl NdsKeyboardInput {
-    pub fn press(self) -> Option<NdsInput> {
+    pub fn press(self) -> NdsInput {
         match self {
-            NdsKeyboardInput::Key(key) => Some(NdsInput::KeyPress(key)),
-            NdsKeyboardInput::OpenCloseLid => Some(NdsInput::OpenCloseLid),
+            NdsKeyboardInput::Key(key) => NdsInput::KeyPress(key),
+            NdsKeyboardInput::OpenCloseLid => NdsInput::OpenCloseLid,
         }
     }
 
