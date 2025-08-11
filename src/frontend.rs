@@ -78,7 +78,6 @@ pub enum Request {
     WriteSavedata(PathBuf),
 }
 
-// #[derive(Debug)]
 pub struct Frontend {
     pub nds: Nds,
     pub top_frame: [u8; 256 * 192 * 4],
@@ -86,6 +85,7 @@ pub struct Frontend {
     pub audio: Arc<Mutex<Vec<i16>>>,
     pub key_map: HashMap<EmuInput, KeyPressAction>,
     pub key_modifiers: ModifiersState,
+    pub held_actions: HashMap<VirtualKeyCode, KeyPressAction>,
     pub nds_input: NdsInputState,
     pub cursor: Option<(u8, u8)>,
     pub replay: Option<(Replay, ReplayState)>,
@@ -119,8 +119,9 @@ impl Frontend {
             bottom_frame: [0; 256 * 192 * 4],
             audio,
             key_map,
-            nds_input: NdsInputState::new(),
             key_modifiers: ModifiersState::empty(),
+            held_actions: HashMap::new(),
+            nds_input: NdsInputState::new(),
             cursor: None,
             replay,
         }
@@ -143,6 +144,8 @@ impl Frontend {
                     Some(action) => action.to_owned(),
                     None => return,
                 };
+
+                self.held_actions.insert(key_code, emu_key.clone());
 
                 match emu_key {
                     KeyPressAction::NdsAction(nds_action) => {
@@ -195,12 +198,7 @@ impl Frontend {
                 }
             }
             InputEvent::KeyUp(key_code) => {
-                let modifiers = self.key_modifiers;
-
-                let emu_key = match self.key_map.get(&EmuInput {
-                    key_code,
-                    modifiers,
-                }) {
+                let emu_key = match self.held_actions.remove(&key_code) {
                     Some(action) => action.to_owned(),
                     None => return,
                 };
