@@ -22,7 +22,7 @@ pub enum ReplayState {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub enum KeyPressAction {
+pub enum EmuInput {
     NdsAction(NdsAction),
     PlayPlause,
     Step,
@@ -54,7 +54,7 @@ pub enum NdsAction {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize)]
-pub struct EmuInput {
+pub struct KeyCombination {
     pub key_code: VirtualKeyCode,
     pub modifiers: ModifiersState,
 }
@@ -83,9 +83,9 @@ pub struct Frontend {
     pub top_frame: [u8; 256 * 192 * 4],
     pub bottom_frame: [u8; 256 * 192 * 4],
     pub audio: Arc<Mutex<Vec<i16>>>,
-    pub key_map: HashMap<EmuInput, KeyPressAction>,
+    pub key_map: HashMap<KeyCombination, EmuInput>,
     pub key_modifiers: ModifiersState,
-    pub held_actions: HashMap<VirtualKeyCode, KeyPressAction>,
+    pub held_inputs: HashMap<VirtualKeyCode, EmuInput>,
     pub nds_input: NdsInputState,
     pub cursor: Option<(u8, u8)>,
     pub replay: Option<(Replay, ReplayState)>,
@@ -97,7 +97,7 @@ impl Frontend {
         save: Option<Vec<u8>>,
         time: DateTime<Utc>,
         audio: Arc<Mutex<Vec<i16>>>,
-        key_map: HashMap<EmuInput, KeyPressAction>,
+        key_map: HashMap<KeyCombination, EmuInput>,
         replay: Option<(Replay, ReplayState)>,
     ) -> Self {
         let mut nds = Nds::new();
@@ -120,7 +120,7 @@ impl Frontend {
             audio,
             key_map,
             key_modifiers: ModifiersState::empty(),
-            held_actions: HashMap::new(),
+            held_inputs: HashMap::new(),
             nds_input: NdsInputState::new(),
             cursor: None,
             replay,
@@ -137,7 +137,7 @@ impl Frontend {
             InputEvent::KeyDown(key_code) => {
                 let modifiers = self.key_modifiers;
 
-                let emu_key = match self.key_map.get(&EmuInput {
+                let emu_input = match self.key_map.get(&KeyCombination {
                     key_code,
                     modifiers,
                 }) {
@@ -145,37 +145,37 @@ impl Frontend {
                     None => return,
                 };
 
-                self.held_actions.insert(key_code, emu_key.clone());
+                self.held_inputs.insert(key_code, emu_input.clone());
 
-                match emu_key {
-                    KeyPressAction::NdsAction(nds_action) => {
+                match emu_input {
+                    EmuInput::NdsAction(nds_action) => {
                         NdsKeyboardInput::from(nds_action)
                             .press()
                             .map(|input| self.nds_input.register_input(input));
                     }
-                    KeyPressAction::PlayPlause => {
+                    EmuInput::PlayPlause => {
                         state_rx.send(Some(EmuStateChange::PlayPause)).unwrap();
                     }
-                    KeyPressAction::Step => {
+                    EmuInput::Step => {
                         state_rx.send(Some(EmuStateChange::Step)).unwrap();
                     }
                     // TODO: implement these actions
-                    KeyPressAction::Save(path) => {
+                    EmuInput::Save(path) => {
                         request_rx
                             .try_send(Request::WriteSavedata(path.into()))
                             .unwrap();
                     }
-                    KeyPressAction::ReadSavestate(path) => {
+                    EmuInput::ReadSavestate(path) => {
                         request_rx
                             .try_send(Request::ReadSavestate(path.into()))
                             .unwrap();
                     }
-                    KeyPressAction::WriteSavestate(path) => {
+                    EmuInput::WriteSavestate(path) => {
                         request_rx
                             .try_send(Request::WriteSavestate(path.into()))
                             .unwrap();
                     }
-                    KeyPressAction::ToggleReplayMode => {
+                    EmuInput::ToggleReplayMode => {
                         if let Some(state) = self.replay.as_mut() {
                             match state.1 {
                                 ReplayState::Playing => {
@@ -189,22 +189,22 @@ impl Frontend {
                             }
                         }
                     }
-                    KeyPressAction::SaveReplay => {
+                    EmuInput::SaveReplay => {
                         request_rx.try_send(Request::WriteReplay).unwrap();
                     }
-                    KeyPressAction::WriteMainRAM(path) => {
+                    EmuInput::WriteMainRAM(path) => {
                         request_rx.try_send(Request::WriteRam(path.into())).unwrap();
                     }
                 }
             }
             InputEvent::KeyUp(key_code) => {
-                let emu_key = match self.held_actions.remove(&key_code) {
+                let emu_input = match self.held_inputs.remove(&key_code) {
                     Some(action) => action.to_owned(),
                     None => return,
                 };
 
-                match emu_key {
-                    KeyPressAction::NdsAction(nds_action) => {
+                match emu_input {
+                    EmuInput::NdsAction(nds_action) => {
                         NdsKeyboardInput::from(nds_action)
                             .release()
                             .map(|input| self.nds_input.register_input(input));

@@ -5,7 +5,7 @@ use glium::glutin::event::{ModifiersState, VirtualKeyCode};
 use serde::{Deserialize, Serialize};
 
 use crate::args::{Args, Commands};
-use crate::frontend::{EmuInput, KeyPressAction, NdsAction, ReplayState};
+use crate::frontend::{EmuInput, KeyCombination, NdsAction, ReplayState};
 use crate::replay::{Replay, ReplaySource};
 
 #[derive(Debug, PartialEq, Clone)]
@@ -13,7 +13,7 @@ pub struct Config {
     pub default_game_path: Option<PathBuf>,
     pub default_save_path: Option<PathBuf>,
     pub timestamp: Option<DateTime<Utc>>,
-    pub key_map: HashMap<EmuInput, KeyPressAction>,
+    pub key_map: HashMap<KeyCombination, EmuInput>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -99,48 +99,33 @@ impl Default for Config {
             default_save_path: None,
             timestamp: None,
             key_map: vec![
-                (VirtualKeyCode::W, KeyPressAction::NdsAction(NdsAction::Up)),
-                (
-                    VirtualKeyCode::A,
-                    KeyPressAction::NdsAction(NdsAction::Left),
-                ),
-                (
-                    VirtualKeyCode::S,
-                    KeyPressAction::NdsAction(NdsAction::Down),
-                ),
-                (
-                    VirtualKeyCode::D,
-                    KeyPressAction::NdsAction(NdsAction::Right),
-                ),
-                (VirtualKeyCode::I, KeyPressAction::NdsAction(NdsAction::X)),
-                (VirtualKeyCode::J, KeyPressAction::NdsAction(NdsAction::Y)),
-                (VirtualKeyCode::K, KeyPressAction::NdsAction(NdsAction::B)),
-                (VirtualKeyCode::L, KeyPressAction::NdsAction(NdsAction::A)),
-                (VirtualKeyCode::Q, KeyPressAction::NdsAction(NdsAction::L)),
-                (VirtualKeyCode::P, KeyPressAction::NdsAction(NdsAction::R)),
-                (
-                    VirtualKeyCode::Space,
-                    KeyPressAction::NdsAction(NdsAction::Start),
-                ),
+                (VirtualKeyCode::W, EmuInput::NdsAction(NdsAction::Up)),
+                (VirtualKeyCode::A, EmuInput::NdsAction(NdsAction::Left)),
+                (VirtualKeyCode::S, EmuInput::NdsAction(NdsAction::Down)),
+                (VirtualKeyCode::D, EmuInput::NdsAction(NdsAction::Right)),
+                (VirtualKeyCode::I, EmuInput::NdsAction(NdsAction::X)),
+                (VirtualKeyCode::J, EmuInput::NdsAction(NdsAction::Y)),
+                (VirtualKeyCode::K, EmuInput::NdsAction(NdsAction::B)),
+                (VirtualKeyCode::L, EmuInput::NdsAction(NdsAction::A)),
+                (VirtualKeyCode::Q, EmuInput::NdsAction(NdsAction::L)),
+                (VirtualKeyCode::P, EmuInput::NdsAction(NdsAction::R)),
+                (VirtualKeyCode::Space, EmuInput::NdsAction(NdsAction::Start)),
+                (VirtualKeyCode::X, EmuInput::NdsAction(NdsAction::Select)),
                 (
                     VirtualKeyCode::X,
-                    KeyPressAction::NdsAction(NdsAction::Select),
-                ),
-                (
-                    VirtualKeyCode::X,
-                    KeyPressAction::NdsAction(NdsAction::OpenCloseLid),
+                    EmuInput::NdsAction(NdsAction::OpenCloseLid),
                 ),
                 (
                     VirtualKeyCode::Slash,
-                    KeyPressAction::NdsAction(NdsAction::OpenCloseLid),
+                    EmuInput::NdsAction(NdsAction::OpenCloseLid),
                 ),
-                (VirtualKeyCode::Comma, KeyPressAction::PlayPlause),
-                (VirtualKeyCode::Period, KeyPressAction::Step),
+                (VirtualKeyCode::Comma, EmuInput::PlayPlause),
+                (VirtualKeyCode::Period, EmuInput::Step),
             ]
             .into_iter()
             .map(|basic| {
                 (
-                    EmuInput {
+                    KeyCombination {
                         key_code: basic.0,
                         modifiers: ModifiersState::empty(),
                     },
@@ -148,11 +133,11 @@ impl Default for Config {
                 )
             })
             .chain(vec![(
-                EmuInput {
+                KeyCombination {
                     key_code: VirtualKeyCode::S,
                     modifiers: ModifiersState::CTRL,
                 },
-                KeyPressAction::Save(String::from("save.bin")),
+                EmuInput::Save(String::from("save.bin")),
             )])
             .collect(),
         }
@@ -168,7 +153,7 @@ pub struct EmuInputEntry {
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ConfigKeyMapEntry {
     input: EmuInputEntry,
-    action: KeyPressAction,
+    action: EmuInput,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -179,9 +164,9 @@ pub struct ConfigFile {
     pub key_map: Vec<ConfigKeyMapEntry>,
 }
 
-impl From<EmuInputEntry> for EmuInput {
+impl From<EmuInputEntry> for KeyCombination {
     fn from(value: EmuInputEntry) -> Self {
-        EmuInput {
+        KeyCombination {
             key_code: value.key_code,
             modifiers: value.modifiers.unwrap_or_default(),
         }
@@ -221,8 +206,8 @@ impl From<Config> for ConfigFile {
     }
 }
 
-impl From<EmuInput> for EmuInputEntry {
-    fn from(value: EmuInput) -> Self {
+impl From<KeyCombination> for EmuInputEntry {
+    fn from(value: KeyCombination) -> Self {
         EmuInputEntry {
             key_code: value.key_code,
             modifiers: if value.modifiers.eq(&Default::default()) {
