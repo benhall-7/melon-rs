@@ -8,7 +8,7 @@ This code is licensed under GPL v3. To understand the terms, review the `LICENSE
 
 ## features
 
-- Buttery smooth 60fps emulation
+- Buttery smooth 60fps emulation and audio playback
 - Input configurability (via the `config.yml` file)
 - Touchsceen support
 - Save file loading
@@ -16,7 +16,7 @@ This code is licensed under GPL v3. To understand the terms, review the `LICENSE
 - Frame step button
 - Savestate support
 - Deterministic emulation
-- Input recording and playback
+- Input recording and replaying
 
 ## games
 
