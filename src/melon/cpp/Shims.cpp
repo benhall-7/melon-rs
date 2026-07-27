@@ -18,24 +18,27 @@ namespace Shims
         return nds;
     }
 
-    bool Copy_Framebuffers(const NDS &nds, u8 *dest, bool index)
+    bool Copy_Framebuffers(NDS &nds, u8 *dest, bool index)
     {
-        int ind = (int)index;
-        int frontbuf = nds.GPU.FrontBuffer;
-
-        auto screens = nds.GPU.Framebuffer[frontbuf];
-        if (!screens[0] || !screens[1])
+        void *top;
+        void *bottom;
+        if (!nds.GPU.GetFramebuffers(&top, &bottom) || !top || !bottom)
         {
             return false;
         }
 
-        memcpy(dest, screens[ind].get(), 4 * 256 * 192);
+        memcpy(dest, index ? bottom : top, 4 * 256 * 192);
         return true;
     }
 
     int SPU_ReadOutput(NDS &nds, s16 *data, int samples)
     {
         return nds.SPU.ReadOutput(data, samples);
+    }
+
+    void SPU_SetOutputSkew(NDS &nds, double skew)
+    {
+        nds.SPU.SetOutputSkew(skew);
     }
 
     bool ReadSavestate(NDS &nds, u8 *source, s32 len)

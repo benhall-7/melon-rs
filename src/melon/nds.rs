@@ -11,11 +11,13 @@ pub struct Nds(UniquePtr<sys::NDS>);
 
 impl Nds {
     pub const AUDIO_CHANNELS: u16 = 2;
-    pub const AUDIO_SAMPLE_RATE: u32 = 32824;
+    pub const AUDIO_SAMPLE_RATE: u32 = 48_000;
+    pub const NATIVE_FRAME_RATE: f64 = 59.826_098_288_080_8;
 
     pub fn new() -> Self {
         let mut nds = Nds(sys::New_NDS());
         nds.reset();
+        nds.set_audio_output_skew(60.0 / Self::NATIVE_FRAME_RATE);
         nds
     }
 
@@ -100,15 +102,9 @@ impl Nds {
         self.0.pin_mut().RunFrame()
     }
 
-    pub fn update_framebuffers(&self, dest: &mut [u8], bottom: bool) -> bool {
+    pub fn update_framebuffers(&mut self, dest: &mut [u8], bottom: bool) -> bool {
         assert_eq!(dest.len(), 256 * 192 * 4);
-        unsafe {
-            sys::Copy_Framebuffers(
-                self.0.as_ref().expect("Couldn't get ref to pin"),
-                dest.as_mut_ptr(),
-                bottom,
-            )
-        }
+        unsafe { sys::Copy_Framebuffers(self.0.pin_mut(), dest.as_mut_ptr(), bottom) }
     }
 
     pub fn read_audio_output(&mut self) -> Vec<i16> {
@@ -116,6 +112,10 @@ impl Nds {
         let samples_read =
             unsafe { sys::SPU_ReadOutput(self.0.pin_mut(), &mut buffer as *mut i16, 1024) };
         buffer[0..2 * samples_read as usize].into()
+    }
+
+    pub fn set_audio_output_skew(&mut self, skew: f64) {
+        sys::SPU_SetOutputSkew(self.0.pin_mut(), skew);
     }
 
     pub fn read_savestate(&mut self, file: String) -> bool {

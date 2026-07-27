@@ -12,8 +12,9 @@ namespace Shims
 {
     std::unique_ptr<NDS> New_NDS();
 
-    bool Copy_Framebuffers(const NDS &nds, u8 *dest, bool index);
+    bool Copy_Framebuffers(NDS &nds, u8 *dest, bool index);
     s32 SPU_ReadOutput(NDS &nds, s16 *data, s32 samples);
+    void SPU_SetOutputSkew(NDS &nds, double skew);
 
     bool ReadSavestate(NDS &nds, u8 *source, s32 len);
     std::unique_ptr<std::vector<u8>> WriteSavestate(NDS &nds);

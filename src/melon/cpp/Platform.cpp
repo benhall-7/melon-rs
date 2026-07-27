@@ -277,4 +277,38 @@ namespace melonDS::Platform
     {
         return PlatformImpl::Camera_CaptureFrame(num, frame, width, height, yuv);
     }
+
+    void Mic_Start(void*)
+    {
+        // Microphone input is not currently supported by this frontend.
+    }
+
+    void Mic_Stop(void*)
+    {
+    }
+
+    int Mic_ReadInput(s16*, int, void*)
+    {
+        return 0;
+    }
+
+    AACDecoder* AAC_Init()
+    {
+        // DSi AAC decoding is not currently supported by this frontend.
+        return nullptr;
+    }
+
+    void AAC_DeInit(AACDecoder*)
+    {
+    }
+
+    bool AAC_Configure(AACDecoder*, int, int)
+    {
+        return false;
+    }
+
+    bool AAC_DecodeFrame(AACDecoder*, const void*, int, void*, int)
+    {
+        return false;
+    }
 }

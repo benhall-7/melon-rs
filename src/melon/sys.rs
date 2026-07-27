@@ -281,8 +281,9 @@ mod sys {
 
         pub fn New_NDS() -> UniquePtr<NDS>;
 
-        pub unsafe fn Copy_Framebuffers(nds: &NDS, dest: *mut u8, index: bool) -> bool;
+        pub unsafe fn Copy_Framebuffers(nds: Pin<&mut NDS>, dest: *mut u8, index: bool) -> bool;
         pub unsafe fn SPU_ReadOutput(nds: Pin<&mut NDS>, data: *mut i16, samples: i32) -> i32;
+        pub fn SPU_SetOutputSkew(nds: Pin<&mut NDS>, skew: f64);
 
         pub unsafe fn ReadSavestate(nds: Pin<&mut NDS>, contents: *mut u8, len: i32) -> bool;
         pub unsafe fn WriteSavestate(nds: Pin<&mut NDS>) -> UniquePtr<CxxVector<u8>>;
@@ -316,8 +317,8 @@ mod sys {
 
     // Implementations on types
 
-    unsafe impl UniquePtr<CartCommon> {}
-    unsafe impl UniquePtr<NDS> {}
+    impl UniquePtr<CartCommon> {}
+    impl UniquePtr<NDS> {}
 }
 
 fn instance_id() -> i32 {
