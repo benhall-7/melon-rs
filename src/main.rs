@@ -9,7 +9,8 @@ use winit::event_loop::ControlFlow;
 
 use crate::audio::Audio;
 use crate::config::{Config, ConfigFile, StartParams};
-use crate::frontend::{Frontend, InputEvent, Request};
+use crate::frontend::{Frontend, Request};
+use crate::input::InputEvent;
 use crate::window::{draw, get_draw_data};
 
 pub mod args;
@@ -17,6 +18,7 @@ pub mod audio;
 pub mod config;
 pub mod events;
 pub mod frontend;
+pub mod input;
 pub mod melon;
 pub mod replay;
 pub mod utils;
@@ -231,9 +233,7 @@ async fn main() {
                         // TODO: check if scaling the screen breaks anything
                         let x = (position.x as u32).clamp(0, 255) as u8;
                         let y = (position.y as u32 - 192).clamp(0, 255) as u8;
-                        input_tx
-                            .try_send(InputEvent::CursorMove(x, y))
-                            .unwrap();
+                        input_tx.try_send(InputEvent::CursorMove(x, y)).unwrap();
                     }
                 }
                 WindowEvent::CloseRequested => {

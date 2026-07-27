@@ -3,17 +3,15 @@ use std::path::PathBuf;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::melon::nds::input::NdsInputState;
+use crate::input::BoundaryInput;
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Replay {
     pub name: PathBuf,
     pub author: String,
     pub source: ReplaySource,
-    // inputs are determined by a 32-bit bitfield and we can
-    // pull it straight from melonDS
-    // TODO: this only makes sense for button presses, not screen clicks, lid closing, etc
-    pub inputs: Vec<NdsInputState>,
+    /// One sampled input per boundary, indexed by boundary order.
+    pub inputs: Vec<BoundaryInput>,
 }
 
 /// Replays could realistically be played back in 3 ways:
@@ -48,5 +46,5 @@ pub struct SavestateContext {
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct SavestateContextReplay {
     pub name: PathBuf,
-    pub inputs: Vec<NdsInputState>,
+    pub inputs: Vec<BoundaryInput>,
 }

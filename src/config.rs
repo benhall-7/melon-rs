@@ -5,7 +5,8 @@ use glium::glutin::event::{ModifiersState, VirtualKeyCode};
 use serde::{Deserialize, Serialize};
 
 use crate::args::{Args, Commands};
-use crate::frontend::{EmuInput, KeyCombination, NdsAction, ReplayState};
+use crate::frontend::ReplayState;
+use crate::input::{Binding, ConsoleBinding, ConsoleButton, FrontendCommand, KeyCombination};
 use crate::replay::{Replay, ReplaySource};
 
 #[derive(Debug, PartialEq, Clone)]
@@ -13,7 +14,7 @@ pub struct Config {
     pub default_game_path: Option<PathBuf>,
     pub default_save_path: Option<PathBuf>,
     pub timestamp: Option<DateTime<Utc>>,
-    pub key_map: HashMap<KeyCombination, EmuInput>,
+    pub key_map: HashMap<KeyCombination, Binding>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -99,28 +100,34 @@ impl Default for Config {
             default_save_path: None,
             timestamp: None,
             key_map: vec![
-                (VirtualKeyCode::W, EmuInput::NdsAction(NdsAction::Up)),
-                (VirtualKeyCode::A, EmuInput::NdsAction(NdsAction::Left)),
-                (VirtualKeyCode::S, EmuInput::NdsAction(NdsAction::Down)),
-                (VirtualKeyCode::D, EmuInput::NdsAction(NdsAction::Right)),
-                (VirtualKeyCode::I, EmuInput::NdsAction(NdsAction::X)),
-                (VirtualKeyCode::J, EmuInput::NdsAction(NdsAction::Y)),
-                (VirtualKeyCode::K, EmuInput::NdsAction(NdsAction::B)),
-                (VirtualKeyCode::L, EmuInput::NdsAction(NdsAction::A)),
-                (VirtualKeyCode::Q, EmuInput::NdsAction(NdsAction::L)),
-                (VirtualKeyCode::P, EmuInput::NdsAction(NdsAction::R)),
-                (VirtualKeyCode::Space, EmuInput::NdsAction(NdsAction::Start)),
-                (VirtualKeyCode::X, EmuInput::NdsAction(NdsAction::Select)),
+                (VirtualKeyCode::W, button(ConsoleButton::Up)),
+                (VirtualKeyCode::A, button(ConsoleButton::Left)),
+                (VirtualKeyCode::S, button(ConsoleButton::Down)),
+                (VirtualKeyCode::D, button(ConsoleButton::Right)),
+                (VirtualKeyCode::I, button(ConsoleButton::X)),
+                (VirtualKeyCode::J, button(ConsoleButton::Y)),
+                (VirtualKeyCode::K, button(ConsoleButton::B)),
+                (VirtualKeyCode::L, button(ConsoleButton::A)),
+                (VirtualKeyCode::Q, button(ConsoleButton::L)),
+                (VirtualKeyCode::P, button(ConsoleButton::R)),
+                (VirtualKeyCode::Space, button(ConsoleButton::Start)),
+                (VirtualKeyCode::X, button(ConsoleButton::Select)),
                 (
-                    VirtualKeyCode::X,
-                    EmuInput::NdsAction(NdsAction::OpenCloseLid),
+                    VirtualKeyCode::Semicolon,
+                    Binding::Console(ConsoleBinding::OpenLid),
                 ),
                 (
                     VirtualKeyCode::Slash,
-                    EmuInput::NdsAction(NdsAction::OpenCloseLid),
+                    Binding::Console(ConsoleBinding::CloseLid),
                 ),
-                (VirtualKeyCode::Comma, EmuInput::PlayPlause),
-                (VirtualKeyCode::Period, EmuInput::Step),
+                (
+                    VirtualKeyCode::Comma,
+                    Binding::Command(FrontendCommand::PlayPause),
+                ),
+                (
+                    VirtualKeyCode::Period,
+                    Binding::Command(FrontendCommand::Step),
+                ),
             ]
             .into_iter()
             .map(|basic| {
@@ -137,23 +144,124 @@ impl Default for Config {
                     key_code: VirtualKeyCode::S,
                     modifiers: ModifiersState::CTRL,
                 },
-                EmuInput::Save(String::from("save.bin")),
+                Binding::Command(FrontendCommand::WriteSavedata(String::from("save.bin"))),
             )])
             .collect(),
         }
     }
 }
 
+fn button(button: ConsoleButton) -> Binding {
+    Binding::Console(ConsoleBinding::Button(button))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every binding must have a YAML spelling. serde_yaml refuses to serialize
+    /// nested enums, which is why `ConfigBinding` is flat.
+    #[test]
+    fn the_default_config_survives_a_yaml_round_trip() {
+        let file = ConfigFile::from(Config::default());
+        let yaml = serde_yaml::to_string(&file).expect("default config is not serializable");
+
+        assert_eq!(
+            serde_yaml::from_str::<ConfigFile>(&yaml).expect("serialized config does not parse"),
+            file
+        );
+    }
+
+    #[test]
+    fn the_shipped_config_file_loads() {
+        let yaml = std::fs::read_to_string("config.yml").expect("config.yml is missing");
+
+        serde_yaml::from_str::<ConfigFile>(&yaml).expect("config.yml does not parse");
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub struct EmuInputEntry {
+pub struct KeyEntry {
     pub key_code: VirtualKeyCode,
     pub modifiers: Option<ModifiersState>,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ConfigKeyMapEntry {
-    input: EmuInputEntry,
-    action: EmuInput,
+    key: KeyEntry,
+    binding: ConfigBinding,
+}
+
+/// The file-facing spelling of a [`Binding`].
+///
+/// Flat by necessity: serde_yaml cannot represent nested enums, so
+/// `Console(Button(A))` has no YAML form. Keeping the flat version here also
+/// means the file format can change without disturbing the input module.
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub enum ConfigBinding {
+    Button(ConsoleButton),
+    OpenLid,
+    CloseLid,
+    PlayPause,
+    Step,
+    WriteSavedata(String),
+    ReadSavestate(String),
+    WriteSavestate(String),
+    WriteMainRam(String),
+    ToggleReplayMode,
+    SaveReplay,
+}
+
+impl From<ConfigBinding> for Binding {
+    fn from(value: ConfigBinding) -> Self {
+        match value {
+            ConfigBinding::Button(button) => Binding::Console(ConsoleBinding::Button(button)),
+            ConfigBinding::OpenLid => Binding::Console(ConsoleBinding::OpenLid),
+            ConfigBinding::CloseLid => Binding::Console(ConsoleBinding::CloseLid),
+            ConfigBinding::PlayPause => Binding::Command(FrontendCommand::PlayPause),
+            ConfigBinding::Step => Binding::Command(FrontendCommand::Step),
+            ConfigBinding::WriteSavedata(path) => {
+                Binding::Command(FrontendCommand::WriteSavedata(path))
+            }
+            ConfigBinding::ReadSavestate(path) => {
+                Binding::Command(FrontendCommand::ReadSavestate(path))
+            }
+            ConfigBinding::WriteSavestate(path) => {
+                Binding::Command(FrontendCommand::WriteSavestate(path))
+            }
+            ConfigBinding::WriteMainRam(path) => {
+                Binding::Command(FrontendCommand::WriteMainRam(path))
+            }
+            ConfigBinding::ToggleReplayMode => Binding::Command(FrontendCommand::ToggleReplayMode),
+            ConfigBinding::SaveReplay => Binding::Command(FrontendCommand::SaveReplay),
+        }
+    }
+}
+
+impl From<Binding> for ConfigBinding {
+    fn from(value: Binding) -> Self {
+        match value {
+            Binding::Console(ConsoleBinding::Button(button)) => ConfigBinding::Button(button),
+            Binding::Console(ConsoleBinding::OpenLid) => ConfigBinding::OpenLid,
+            Binding::Console(ConsoleBinding::CloseLid) => ConfigBinding::CloseLid,
+            Binding::Command(FrontendCommand::PlayPause) => ConfigBinding::PlayPause,
+            Binding::Command(FrontendCommand::Step) => ConfigBinding::Step,
+            Binding::Command(FrontendCommand::WriteSavedata(path)) => {
+                ConfigBinding::WriteSavedata(path)
+            }
+            Binding::Command(FrontendCommand::ReadSavestate(path)) => {
+                ConfigBinding::ReadSavestate(path)
+            }
+            Binding::Command(FrontendCommand::WriteSavestate(path)) => {
+                ConfigBinding::WriteSavestate(path)
+            }
+            Binding::Command(FrontendCommand::WriteMainRam(path)) => {
+                ConfigBinding::WriteMainRam(path)
+            }
+            Binding::Command(FrontendCommand::ToggleReplayMode) => ConfigBinding::ToggleReplayMode,
+            Binding::Command(FrontendCommand::SaveReplay) => ConfigBinding::SaveReplay,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -164,8 +272,8 @@ pub struct ConfigFile {
     pub key_map: Vec<ConfigKeyMapEntry>,
 }
 
-impl From<EmuInputEntry> for KeyCombination {
-    fn from(value: EmuInputEntry) -> Self {
+impl From<KeyEntry> for KeyCombination {
+    fn from(value: KeyEntry) -> Self {
         KeyCombination {
             key_code: value.key_code,
             modifiers: value.modifiers.unwrap_or_default(),
@@ -182,7 +290,7 @@ impl From<ConfigFile> for Config {
             key_map: value
                 .key_map
                 .into_iter()
-                .map(|entry| (entry.input.into(), entry.action))
+                .map(|entry| (entry.key.into(), entry.binding.into()))
                 .collect(),
         }
     }
@@ -197,18 +305,18 @@ impl From<Config> for ConfigFile {
             key_map: value
                 .key_map
                 .into_iter()
-                .map(|(input, action)| ConfigKeyMapEntry {
-                    input: input.into(),
-                    action,
+                .map(|(key, binding)| ConfigKeyMapEntry {
+                    key: key.into(),
+                    binding: binding.into(),
                 })
                 .collect(),
         }
     }
 }
 
-impl From<KeyCombination> for EmuInputEntry {
+impl From<KeyCombination> for KeyEntry {
     fn from(value: KeyCombination) -> Self {
-        EmuInputEntry {
+        KeyEntry {
             key_code: value.key_code,
             modifiers: if value.modifiers.eq(&Default::default()) {
                 None

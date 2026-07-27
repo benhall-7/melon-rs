@@ -3,9 +3,9 @@ use std::io::Write;
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use cxx::UniquePtr;
 
-use super::sys;
+use crate::input::ButtonMask;
 
-pub mod input;
+use super::sys;
 
 pub struct Nds(UniquePtr<sys::NDS>);
 
@@ -30,8 +30,9 @@ impl Nds {
         self.0.CartInserted()
     }
 
-    pub fn set_key_mask(&mut self, key_mask: input::NdsKeyMask) {
-        self.0.pin_mut().SetKeyMask(!key_mask.bits())
+    /// melonDS wants active-low keys, hence the inversion.
+    pub fn set_key_mask(&mut self, buttons: ButtonMask) {
+        self.0.pin_mut().SetKeyMask(!u32::from(buttons.bits()))
     }
 
     pub fn touch_screen(&mut self, x: u16, y: u16) {

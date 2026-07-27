@@ -4,11 +4,12 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
-use winit::event::{ModifiersState, VirtualKeyCode};
 
-use crate::melon::nds::input::{NdsInputState, NdsKey, NdsKeyboardInput};
+use crate::input::{
+    Binding, BindingOutcome, Bindings, BoundaryIndex, BoundaryInput, FrontendCommand,
+    InputAccumulator, InputEvent, KeyCombination, SystemAction,
+};
 use crate::melon::nds::Nds;
 use crate::replay::SavestateContextReplay;
 use crate::replay::{Replay, SavestateContext};
@@ -19,54 +20,6 @@ use crate::EmuStateChange;
 pub enum ReplayState {
     Recording,
     Playing,
-}
-
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub enum EmuInput {
-    NdsAction(NdsAction),
-    PlayPlause,
-    Step,
-    Save(String),
-    ReadSavestate(String),
-    WriteSavestate(String),
-    ToggleReplayMode,
-    SaveReplay,
-    WriteMainRAM(String),
-}
-
-#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
-pub enum NdsAction {
-    // NDS buttons
-    A,
-    B,
-    Select,
-    Start,
-    Right,
-    Left,
-    Up,
-    Down,
-    R,
-    L,
-    X,
-    Y,
-    // other NDS inputs
-    OpenCloseLid,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize)]
-pub struct KeyCombination {
-    pub key_code: VirtualKeyCode,
-    pub modifiers: ModifiersState,
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum InputEvent {
-    KeyDown(VirtualKeyCode),
-    KeyUp(VirtualKeyCode),
-    CursorMove(u8, u8),
-    MouseDown,
-    MouseUp,
-    KeyModifierChange(ModifiersState),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -83,11 +36,8 @@ pub struct Frontend {
     pub top_frame: [u8; 256 * 192 * 4],
     pub bottom_frame: [u8; 256 * 192 * 4],
     pub audio: Arc<Mutex<Vec<i16>>>,
-    pub key_map: HashMap<KeyCombination, EmuInput>,
-    pub key_modifiers: ModifiersState,
-    pub held_inputs: HashMap<VirtualKeyCode, EmuInput>,
-    pub nds_input: NdsInputState,
-    pub cursor: Option<(u8, u8)>,
+    pub bindings: Bindings,
+    pub inputs: InputAccumulator,
     pub replay: Option<(Replay, ReplayState)>,
 }
 
@@ -97,7 +47,7 @@ impl Frontend {
         save: Option<Vec<u8>>,
         time: DateTime<Utc>,
         audio: Arc<Mutex<Vec<i16>>>,
-        key_map: HashMap<KeyCombination, EmuInput>,
+        key_map: HashMap<KeyCombination, Binding>,
         replay: Option<(Replay, ReplayState)>,
     ) -> Self {
         let mut nds = Nds::new();
@@ -118,11 +68,8 @@ impl Frontend {
             top_frame: [0; 256 * 192 * 4],
             bottom_frame: [0; 256 * 192 * 4],
             audio,
-            key_map,
-            key_modifiers: ModifiersState::empty(),
-            held_inputs: HashMap::new(),
-            nds_input: NdsInputState::new(),
-            cursor: None,
+            bindings: Bindings::new(key_map),
+            inputs: InputAccumulator::new(),
             replay,
         }
     }
@@ -130,134 +77,103 @@ impl Frontend {
     pub fn handle_input_event(
         &mut self,
         event: InputEvent,
-        state_rx: &watch::Sender<Option<EmuStateChange>>,
-        request_rx: &mpsc::Sender<Request>,
+        state_tx: &watch::Sender<Option<EmuStateChange>>,
+        request_tx: &mpsc::Sender<Request>,
     ) {
-        match event {
-            InputEvent::KeyDown(key_code) => {
-                let modifiers = self.key_modifiers;
+        match self.bindings.handle(event) {
+            Some(BindingOutcome::Console(change)) => self.inputs.apply(change),
+            Some(BindingOutcome::Command(command)) => {
+                self.run_command(command, state_tx, request_tx)
+            }
+            None => {}
+        }
+    }
 
-                let emu_input = match self.key_map.get(&KeyCombination {
-                    key_code,
-                    modifiers,
-                }) {
-                    Some(action) => action.to_owned(),
-                    None => return,
-                };
-
-                self.held_inputs.insert(key_code, emu_input.clone());
-
-                match emu_input {
-                    EmuInput::NdsAction(nds_action) => {
-                        let input = NdsKeyboardInput::from(nds_action).press();
-                        self.nds_input.register_input(input);
-                    }
-                    EmuInput::PlayPlause => {
-                        state_rx.send(Some(EmuStateChange::PlayPause)).unwrap();
-                    }
-                    EmuInput::Step => {
-                        state_rx.send(Some(EmuStateChange::Step)).unwrap();
-                    }
-                    // TODO: implement these actions
-                    EmuInput::Save(path) => {
-                        request_rx
-                            .try_send(Request::WriteSavedata(path.into()))
-                            .unwrap();
-                    }
-                    EmuInput::ReadSavestate(path) => {
-                        request_rx
-                            .try_send(Request::ReadSavestate(path.into()))
-                            .unwrap();
-                    }
-                    EmuInput::WriteSavestate(path) => {
-                        request_rx
-                            .try_send(Request::WriteSavestate(path.into()))
-                            .unwrap();
-                    }
-                    EmuInput::ToggleReplayMode => {
-                        if let Some(state) = self.replay.as_mut() {
-                            match state.1 {
-                                ReplayState::Playing => {
-                                    state.1 = ReplayState::Recording;
-                                    println!("Switched to write mode");
-                                }
-                                ReplayState::Recording => {
-                                    state.1 = ReplayState::Playing;
-                                    println!("Switched to read mode");
-                                }
-                            }
+    fn run_command(
+        &mut self,
+        command: FrontendCommand,
+        state_tx: &watch::Sender<Option<EmuStateChange>>,
+        request_tx: &mpsc::Sender<Request>,
+    ) {
+        match command {
+            FrontendCommand::PlayPause => {
+                state_tx.send(Some(EmuStateChange::PlayPause)).unwrap();
+            }
+            FrontendCommand::Step => {
+                state_tx.send(Some(EmuStateChange::Step)).unwrap();
+            }
+            FrontendCommand::WriteSavedata(path) => {
+                request_tx
+                    .try_send(Request::WriteSavedata(path.into()))
+                    .unwrap();
+            }
+            FrontendCommand::ReadSavestate(path) => {
+                request_tx
+                    .try_send(Request::ReadSavestate(path.into()))
+                    .unwrap();
+            }
+            FrontendCommand::WriteSavestate(path) => {
+                request_tx
+                    .try_send(Request::WriteSavestate(path.into()))
+                    .unwrap();
+            }
+            FrontendCommand::WriteMainRam(path) => {
+                request_tx.try_send(Request::WriteRam(path.into())).unwrap();
+            }
+            FrontendCommand::ToggleReplayMode => {
+                if let Some(state) = self.replay.as_mut() {
+                    match state.1 {
+                        ReplayState::Playing => {
+                            state.1 = ReplayState::Recording;
+                            println!("Switched to write mode");
+                        }
+                        ReplayState::Recording => {
+                            state.1 = ReplayState::Playing;
+                            println!("Switched to read mode");
                         }
                     }
-                    EmuInput::SaveReplay => {
-                        request_rx.try_send(Request::WriteReplay).unwrap();
-                    }
-                    EmuInput::WriteMainRAM(path) => {
-                        request_rx.try_send(Request::WriteRam(path.into())).unwrap();
-                    }
                 }
             }
-            InputEvent::KeyUp(key_code) => {
-                let emu_input = match self.held_inputs.remove(&key_code) {
-                    Some(action) => action.to_owned(),
-                    None => return,
-                };
-
-                match emu_input {
-                    EmuInput::NdsAction(nds_action) => {
-                        NdsKeyboardInput::from(nds_action)
-                            .release()
-                            .map(|input| self.nds_input.register_input(input));
-                    }
-                    _ => {}
-                }
+            FrontendCommand::SaveReplay => {
+                request_tx.try_send(Request::WriteReplay).unwrap();
             }
-            InputEvent::CursorMove(x, y) => {
-                let coord = (x, y);
-                self.cursor = Some(coord);
-                // dragging cursor while clicked
-                self.nds_input
-                    .touch
-                    .as_mut()
-                    .map(|nds_touch| *nds_touch = coord);
-            }
-            InputEvent::MouseDown => self.nds_input.touch = self.cursor,
-            InputEvent::MouseUp => self.nds_input.touch = None,
-            InputEvent::KeyModifierChange(mods) => self.key_modifiers = mods,
         }
     }
 
     pub fn run_frame(&mut self) {
-        let inputs = self.get_nds_inputs();
-        self.record_replay_nds_input();
-        self.set_inputs(inputs);
+        let input = self.select_input();
+        self.record(&input);
+        self.apply_input(&input);
 
         self.nds.run_frame();
-
-        // something feels off about having this here...
-        self.nds_input.lid_changed = false;
 
         self.update_audio();
         self.update_framebuffers();
     }
 
-    pub fn get_nds_inputs(&self) -> NdsInputState {
-        let emu_inputs = self.nds_input;
-        let current_frame = self.nds.current_frame() as usize;
-        if let Some((replay, ReplayState::Playing)) = &self.replay {
-            if current_frame < replay.inputs.len() {
-                return replay.inputs[current_frame];
+    /// Closes the current window and decides what the console will see.
+    ///
+    /// The accumulator is sampled even during playback, so that host input
+    /// accumulated while watching cannot leak into the first recorded window
+    /// after switching to recording.
+    fn select_input(&mut self) -> BoundaryInput {
+        let boundary = self.nds.current_frame() as usize;
+        let live = self.inputs.sample(BoundaryIndex(boundary as u64));
+
+        match &self.replay {
+            Some((replay, ReplayState::Playing)) if boundary < replay.inputs.len() => {
+                replay.inputs[boundary].clone()
             }
+            _ => live,
         }
-        return emu_inputs;
     }
 
-    pub fn record_replay_nds_input(&mut self) {
-        let emu_inputs = self.nds_input;
-        let current_frame = self.nds.current_frame() as usize;
+    fn record(&mut self, input: &BoundaryInput) {
+        let boundary = self.nds.current_frame() as usize;
 
         if let Some((replay, ReplayState::Recording)) = self.replay.as_mut() {
-            if current_frame <= replay.inputs.len() {
-                replay.inputs.splice(current_frame.., [emu_inputs]);
+            if boundary <= replay.inputs.len() {
+                replay.inputs.splice(boundary.., [input.clone()]);
             } else {
                 println!(
                     "WARNING: the replay is in recording mode, but \
@@ -268,18 +184,35 @@ impl Frontend {
         }
     }
 
-    pub fn set_inputs(&mut self, inputs: NdsInputState) {
-        // set key press bitmask
-        self.nds.set_key_mask(inputs.keys);
-        // set touch screen
-        match inputs.touch {
-            Some((x, y)) => self.nds.touch_screen(x as u16, y as u16),
+    /// Hands one boundary's input to the core, held state first and one-shot
+    /// actions second, so an action always observes the state it was sampled
+    /// alongside.
+    fn apply_input(&mut self, input: &BoundaryInput) {
+        self.nds.set_key_mask(input.state.buttons);
+        match input.state.touch {
+            Some(point) => self.nds.touch_screen(point.x as u16, point.y as u16),
             None => self.nds.release_screen(),
         }
-        // optionally open or close lid
-        if inputs.lid_changed {
-            let lid_open = !self.nds.is_lid_closed();
-            self.nds.set_lid_closed(lid_open);
+        // Opening the lid raises an IRQ every time melonDS is told to do it, so
+        // the write has to be an edge even though the state we hold is absolute.
+        if input.state.lid_closed != self.nds.is_lid_closed() {
+            self.nds.set_lid_closed(input.state.lid_closed);
+        }
+
+        for action in &input.actions {
+            match action {
+                SystemAction::Reset => {
+                    self.nds.reset();
+                    self.nds.start();
+                }
+                // These need melonDS shims that do not exist yet, per item 9.
+                // No binding produces them, so this cannot fire today.
+                SystemAction::PowerCycle
+                | SystemAction::InsertCartridge
+                | SystemAction::EjectCartridge => {
+                    println!("WARNING: the {action:?} action is not implemented yet")
+                }
+            }
         }
     }
 
@@ -358,22 +291,3 @@ impl Frontend {
     }
 }
 
-impl From<NdsAction> for NdsKeyboardInput {
-    fn from(value: NdsAction) -> Self {
-        match value {
-            NdsAction::A => NdsKeyboardInput::Key(NdsKey::A),
-            NdsAction::B => NdsKeyboardInput::Key(NdsKey::B),
-            NdsAction::Select => NdsKeyboardInput::Key(NdsKey::Select),
-            NdsAction::Start => NdsKeyboardInput::Key(NdsKey::Start),
-            NdsAction::Right => NdsKeyboardInput::Key(NdsKey::Right),
-            NdsAction::Left => NdsKeyboardInput::Key(NdsKey::Left),
-            NdsAction::Up => NdsKeyboardInput::Key(NdsKey::Up),
-            NdsAction::Down => NdsKeyboardInput::Key(NdsKey::Down),
-            NdsAction::R => NdsKeyboardInput::Key(NdsKey::R),
-            NdsAction::L => NdsKeyboardInput::Key(NdsKey::L),
-            NdsAction::X => NdsKeyboardInput::Key(NdsKey::X),
-            NdsAction::Y => NdsKeyboardInput::Key(NdsKey::Y),
-            NdsAction::OpenCloseLid => NdsKeyboardInput::OpenCloseLid,
-        }
-    }
-}
