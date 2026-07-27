@@ -28,6 +28,7 @@ fn main() {
         .file("melonDS/src/frontend/glad/glad.c")
         // .define("GDBSTUB_ENABLED", None)
         .flag_if_supported("-std=c++17")
+        .flag_if_supported("-Wno-unused-parameter")
         .compile("melon-bindings"); // arbitrary library name, pick anything
 
     // link it!
