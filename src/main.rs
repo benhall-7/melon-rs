@@ -1,18 +1,16 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use clap::Parser;
-use glium::glutin::{self, event::Event};
 use tokio::sync::{mpsc, watch};
-use winit::event::{ElementState, MouseButton, WindowEvent};
-use winit::event_loop::ControlFlow;
 
-use crate::audio::Audio;
+use crate::app::{App, RepaintHandle};
+use crate::audio::Playback;
 use crate::config::{Config, ConfigFile, StartParams};
 use crate::frontend::{Frontend, Request};
 use crate::input::InputEvent;
-use crate::window::{draw, get_draw_data};
 
+pub mod app;
 pub mod args;
 pub mod audio;
 pub mod config;
@@ -22,7 +20,6 @@ pub mod input;
 pub mod melon;
 pub mod replay;
 pub mod utils;
-pub mod window;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum EmuState {
@@ -80,13 +77,14 @@ async fn main() {
         })
     });
     println!("start_time = {}", start_time);
-    let mut audio = Audio::new();
+    // Playback stops the moment this is dropped, so it lives as long as main.
+    let (_playback, audio) = Playback::start();
 
     let core = Arc::new(Mutex::new(Frontend::new(
         cart,
         save,
         start_time,
-        audio.get_game_stream(),
+        audio,
         config.key_map,
         replay,
     )));
@@ -103,6 +101,9 @@ async fn main() {
         request_tx: request_tx.clone(),
         state_tx: state_tx.clone(),
     };
+
+    let repaint: RepaintHandle = Arc::new(OnceLock::new());
+    let emulator_repaint = repaint.clone();
 
     // Spawn emulator tick loop
     tokio::spawn(async move {
@@ -165,14 +166,14 @@ async fn main() {
             match emulator.state {
                 EmuState::Running => {
                     update_inputs(&core, &mut input_rx, &state_tx, &request_tx);
-                    tick_emulator(&core);
+                    tick_emulator(&core, &emulator_repaint);
                 }
                 EmuState::Paused => {
                     update_inputs(&core, &mut input_rx, &state_tx, &request_tx);
                 }
                 EmuState::Stepping => {
                     update_inputs(&core, &mut input_rx, &state_tx, &request_tx);
-                    tick_emulator(&core);
+                    tick_emulator(&core, &emulator_repaint);
                     emulator.state = EmuState::Paused;
                 }
                 EmuState::Stopped => break,
@@ -180,70 +181,20 @@ async fn main() {
         }
     });
 
-    let events_loop = glutin::event_loop::EventLoop::new();
-    let display = glium::Display::new(
-        glutin::window::WindowBuilder::new()
-            .with_inner_size(glutin::dpi::LogicalSize::new(256.0, 192.0 * 2.0))
-            .with_title("melon-rs"),
-        glutin::ContextBuilder::new(),
-        &events_loop,
+    eframe::run_native(
+        "melon-rs",
+        app::native_options(),
+        Box::new(move |cc| {
+            Ok(Box::new(App::new(
+                cc,
+                emulator.core.clone(),
+                input_tx,
+                emulator.state_tx.clone(),
+                &repaint,
+            )))
+        }),
     )
-    .unwrap();
-
-    let draw_data = get_draw_data(&display);
-
-    events_loop.run(move |ev, _target, control_flow| {
-        let next_frame_time =
-            std::time::Instant::now() + std::time::Duration::from_secs_f64(1.0 / 60.0);
-        *control_flow = glutin::event_loop::ControlFlow::WaitUntil(next_frame_time);
-
-        // TODO: double-buffer the frames so that we don't read from the same data being written
-        let (top_frame, bottom_frame) = {
-            let emu_lock = (*emulator.core).lock().unwrap();
-            (emu_lock.top_frame, emu_lock.bottom_frame)
-        };
-
-        draw(&display, &draw_data, &top_frame, &bottom_frame);
-
-        if let Event::WindowEvent { event, .. } = ev {
-            match event {
-                WindowEvent::ModifiersChanged(modifiers) => {
-                    input_tx
-                        .try_send(InputEvent::KeyModifierChange(modifiers))
-                        .unwrap();
-                }
-                WindowEvent::KeyboardInput { input, .. } => {
-                    if let Some(key) = input.virtual_keycode {
-                        let event = match input.state {
-                            ElementState::Pressed => InputEvent::KeyDown(key),
-                            ElementState::Released => InputEvent::KeyUp(key),
-                        };
-                        input_tx.try_send(event).unwrap();
-                    }
-                }
-                WindowEvent::MouseInput { state, button, .. } => match button {
-                    MouseButton::Left => match state {
-                        ElementState::Pressed => input_tx.try_send(InputEvent::MouseDown).unwrap(),
-                        ElementState::Released => input_tx.try_send(InputEvent::MouseUp).unwrap(),
-                    },
-                    _ => {}
-                },
-                WindowEvent::CursorMoved { position, .. } => {
-                    if position.y >= 192.0 {
-                        // TODO: check if scaling the screen breaks anything
-                        let x = (position.x as u32).clamp(0, 255) as u8;
-                        let y = (position.y as u32 - 192).clamp(0, 255) as u8;
-                        input_tx.try_send(InputEvent::CursorMove(x, y)).unwrap();
-                    }
-                }
-                WindowEvent::CloseRequested => {
-                    emulator.state_tx.send(Some(EmuStateChange::Stop)).unwrap();
-                    *control_flow = ControlFlow::Exit;
-                }
-                _ => {}
-            }
-        }
-    });
+    .expect("failed to open the window");
 }
 
 fn update_inputs(
@@ -259,8 +210,15 @@ fn update_inputs(
     }
 }
 
-fn tick_emulator(core: &Arc<Mutex<Frontend>>) {
+fn tick_emulator(core: &Arc<Mutex<Frontend>>, repaint: &RepaintHandle) {
     core.lock()
         .map(|mut core| core.run_frame())
         .expect("failed to access core lock");
+
+    // The UI only draws on demand, so a finished frame has to ask for it. Doing
+    // it here rather than on a timer keeps repaint throttling from ever
+    // affecting emulation.
+    if let Some(ctx) = repaint.get() {
+        ctx.request_repaint();
+    }
 }

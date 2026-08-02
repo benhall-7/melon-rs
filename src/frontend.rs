@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
 
 use chrono::{DateTime, Utc};
 use tokio::sync::{mpsc, watch};
 
+use crate::audio::Audio;
 use crate::input::{
     Binding, BindingOutcome, Bindings, BoundaryIndex, BoundaryInput, FrontendCommand,
     InputAccumulator, InputEvent, KeyCombination, SystemAction,
@@ -35,7 +35,7 @@ pub struct Frontend {
     pub nds: Nds,
     pub top_frame: [u8; 256 * 192 * 4],
     pub bottom_frame: [u8; 256 * 192 * 4],
-    pub audio: Arc<Mutex<Vec<i16>>>,
+    pub audio: Audio,
     pub bindings: Bindings,
     pub inputs: InputAccumulator,
     pub replay: Option<(Replay, ReplayState)>,
@@ -46,7 +46,7 @@ impl Frontend {
         cart: Vec<u8>,
         save: Option<Vec<u8>>,
         time: DateTime<Utc>,
-        audio: Arc<Mutex<Vec<i16>>>,
+        audio: Audio,
         key_map: HashMap<KeyCombination, Binding>,
         replay: Option<(Replay, ReplayState)>,
     ) -> Self {
@@ -217,11 +217,9 @@ impl Frontend {
     }
 
     pub fn update_audio(&mut self) {
-        let audio_out = self.nds.read_audio_output();
-        self.audio
-            .lock()
-            .map(|mut stream| stream.extend(audio_out))
-            .expect("failed to access audio lock");
+        let skew = self.audio.submit(&self.nds.read_audio_output());
+
+        self.nds.set_audio_output_skew(skew);
     }
 
     pub fn update_framebuffers(&mut self) {

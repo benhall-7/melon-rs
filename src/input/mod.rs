@@ -6,6 +6,7 @@ mod primitives;
 pub use accumulator::{InputAccumulator, InputChange};
 pub use bindings::{
     Binding, BindingOutcome, Bindings, ConsoleBinding, FrontendCommand, InputEvent, KeyCombination,
+    Modifiers,
 };
 pub use model::{
     BoundaryIndex, BoundaryInput, ButtonMask, ConsoleButton, ConsoleInputState, SystemAction,

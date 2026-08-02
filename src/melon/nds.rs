@@ -108,11 +108,16 @@ impl Nds {
         unsafe { sys::Copy_Framebuffers(self.0.pin_mut(), dest.as_mut_ptr(), bottom) }
     }
 
-    pub fn read_audio_output(&mut self) -> Vec<i16> {
+    /// melonDS writes interleaved stereo, so the pairs are handed back as pairs:
+    /// splitting one would swap the channels for good.
+    pub fn read_audio_output(&mut self) -> Vec<[i16; 2]> {
         let mut buffer = [0i16; 1024 * 2];
         let samples_read =
             unsafe { sys::SPU_ReadOutput(self.0.pin_mut(), &mut buffer as *mut i16, 1024) };
-        buffer[0..2 * samples_read as usize].into()
+        buffer[0..2 * samples_read as usize]
+            .chunks_exact(2)
+            .map(|pair| [pair[0], pair[1]])
+            .collect()
     }
 
     pub fn set_audio_output_skew(&mut self, skew: f64) {

@@ -1,12 +1,14 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use chrono::{DateTime, Utc};
-use glium::glutin::event::{ModifiersState, VirtualKeyCode};
+use egui::Key;
 use serde::{Deserialize, Serialize};
 
 use crate::args::{Args, Commands};
 use crate::frontend::ReplayState;
-use crate::input::{Binding, ConsoleBinding, ConsoleButton, FrontendCommand, KeyCombination};
+use crate::input::{
+    Binding, ConsoleBinding, ConsoleButton, FrontendCommand, KeyCombination, Modifiers,
+};
 use crate::replay::{Replay, ReplaySource};
 
 #[derive(Debug, PartialEq, Clone)]
@@ -100,49 +102,37 @@ impl Default for Config {
             default_save_path: None,
             timestamp: None,
             key_map: vec![
-                (VirtualKeyCode::W, button(ConsoleButton::Up)),
-                (VirtualKeyCode::A, button(ConsoleButton::Left)),
-                (VirtualKeyCode::S, button(ConsoleButton::Down)),
-                (VirtualKeyCode::D, button(ConsoleButton::Right)),
-                (VirtualKeyCode::I, button(ConsoleButton::X)),
-                (VirtualKeyCode::J, button(ConsoleButton::Y)),
-                (VirtualKeyCode::K, button(ConsoleButton::B)),
-                (VirtualKeyCode::L, button(ConsoleButton::A)),
-                (VirtualKeyCode::Q, button(ConsoleButton::L)),
-                (VirtualKeyCode::P, button(ConsoleButton::R)),
-                (VirtualKeyCode::Space, button(ConsoleButton::Start)),
-                (VirtualKeyCode::X, button(ConsoleButton::Select)),
-                (
-                    VirtualKeyCode::Semicolon,
-                    Binding::Console(ConsoleBinding::OpenLid),
-                ),
-                (
-                    VirtualKeyCode::Slash,
-                    Binding::Console(ConsoleBinding::CloseLid),
-                ),
-                (
-                    VirtualKeyCode::Comma,
-                    Binding::Command(FrontendCommand::PlayPause),
-                ),
-                (
-                    VirtualKeyCode::Period,
-                    Binding::Command(FrontendCommand::Step),
-                ),
+                (Key::W, button(ConsoleButton::Up)),
+                (Key::A, button(ConsoleButton::Left)),
+                (Key::S, button(ConsoleButton::Down)),
+                (Key::D, button(ConsoleButton::Right)),
+                (Key::I, button(ConsoleButton::X)),
+                (Key::J, button(ConsoleButton::Y)),
+                (Key::K, button(ConsoleButton::B)),
+                (Key::L, button(ConsoleButton::A)),
+                (Key::Q, button(ConsoleButton::L)),
+                (Key::P, button(ConsoleButton::R)),
+                (Key::Space, button(ConsoleButton::Start)),
+                (Key::X, button(ConsoleButton::Select)),
+                (Key::Semicolon, Binding::Console(ConsoleBinding::OpenLid)),
+                (Key::Slash, Binding::Console(ConsoleBinding::CloseLid)),
+                (Key::Comma, Binding::Command(FrontendCommand::PlayPause)),
+                (Key::Period, Binding::Command(FrontendCommand::Step)),
             ]
             .into_iter()
             .map(|basic| {
                 (
                     KeyCombination {
                         key_code: basic.0,
-                        modifiers: ModifiersState::empty(),
+                        modifiers: Modifiers::empty(),
                     },
                     basic.1,
                 )
             })
             .chain(vec![(
                 KeyCombination {
-                    key_code: VirtualKeyCode::S,
-                    modifiers: ModifiersState::CTRL,
+                    key_code: Key::S,
+                    modifiers: Modifiers::CTRL,
                 },
                 Binding::Command(FrontendCommand::WriteSavedata(String::from("save.bin"))),
             )])
@@ -182,8 +172,8 @@ mod tests {
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct KeyEntry {
-    pub key_code: VirtualKeyCode,
-    pub modifiers: Option<ModifiersState>,
+    pub key_code: Key,
+    pub modifiers: Option<Modifiers>,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]

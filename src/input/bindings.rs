@@ -1,26 +1,53 @@
 use std::collections::HashMap;
 
-use winit::event::{ModifiersState, VirtualKeyCode};
+use bitflags::bitflags;
+use egui::Key;
+use serde::{Deserialize, Serialize};
 
 use super::accumulator::InputChange;
 use super::model::{ConsoleButton, TouchPoint};
 use super::primitives::{HoldChange, ValueChange};
 
+bitflags! {
+    /// The modifiers a binding can require.
+    ///
+    /// Deliberately not [`egui::Modifiers`], which also carries `command` and
+    /// `mac_cmd`. Those mean different things on different hosts — `command` is
+    /// Cmd on macOS and Ctrl everywhere else — and a binding that changes
+    /// meaning with the machine has no place in a deterministic tool's config.
+    #[derive(Debug, Default, PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize)]
+    pub struct Modifiers: u8 {
+        const ALT = 1 << 0;
+        const CTRL = 1 << 1;
+        const SHIFT = 1 << 2;
+    }
+}
+
+impl From<egui::Modifiers> for Modifiers {
+    fn from(value: egui::Modifiers) -> Self {
+        let mut modifiers = Modifiers::empty();
+        modifiers.set(Modifiers::ALT, value.alt);
+        modifiers.set(Modifiers::CTRL, value.ctrl);
+        modifiers.set(Modifiers::SHIFT, value.shift);
+        modifiers
+    }
+}
+
 /// A raw host event, before any binding has given it meaning.
 #[derive(Debug, PartialEq, Clone)]
 pub enum InputEvent {
-    KeyDown(VirtualKeyCode),
-    KeyUp(VirtualKeyCode),
+    KeyDown(Key),
+    KeyUp(Key),
     CursorMove(u8, u8),
     MouseDown,
     MouseUp,
-    KeyModifierChange(ModifiersState),
+    KeyModifierChange(Modifiers),
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct KeyCombination {
-    pub key_code: VirtualKeyCode,
-    pub modifiers: ModifiersState,
+    pub key_code: Key,
+    pub modifiers: Modifiers,
 }
 
 /// What a host key is bound to.
@@ -70,8 +97,8 @@ pub enum BindingOutcome {
 #[derive(Debug, Default)]
 pub struct Bindings {
     key_map: HashMap<KeyCombination, Binding>,
-    modifiers: ModifiersState,
-    held: HashMap<VirtualKeyCode, Binding>,
+    modifiers: Modifiers,
+    held: HashMap<Key, Binding>,
     mouse_held: bool,
     cursor: Option<TouchPoint>,
 }
@@ -80,7 +107,7 @@ impl Bindings {
     pub fn new(key_map: HashMap<KeyCombination, Binding>) -> Self {
         Self {
             key_map,
-            modifiers: ModifiersState::empty(),
+            modifiers: Modifiers::empty(),
             held: HashMap::new(),
             mouse_held: false,
             cursor: None,
@@ -112,7 +139,7 @@ impl Bindings {
         }
     }
 
-    fn press(&mut self, key_code: VirtualKeyCode) -> Option<BindingOutcome> {
+    fn press(&mut self, key_code: Key) -> Option<BindingOutcome> {
         let binding = self
             .key_map
             .get(&KeyCombination {
@@ -143,7 +170,7 @@ impl Bindings {
 
     /// Releases by key code rather than by combination, so a key still counts as
     /// released when the modifiers changed while it was down.
-    fn release(&mut self, key_code: VirtualKeyCode) -> Option<BindingOutcome> {
+    fn release(&mut self, key_code: Key) -> Option<BindingOutcome> {
         match self.held.remove(&key_code)? {
             Binding::Console(ConsoleBinding::Button(button)) => Some(BindingOutcome::Console(
                 InputChange::Button(HoldChange::Release(button)),
@@ -170,15 +197,15 @@ mod tests {
         Bindings::new(HashMap::from([
             (
                 KeyCombination {
-                    key_code: VirtualKeyCode::L,
-                    modifiers: ModifiersState::empty(),
+                    key_code: Key::L,
+                    modifiers: Modifiers::empty(),
                 },
                 Binding::Console(ConsoleBinding::Button(ConsoleButton::A)),
             ),
             (
                 KeyCombination {
-                    key_code: VirtualKeyCode::Comma,
-                    modifiers: ModifiersState::empty(),
+                    key_code: Key::Comma,
+                    modifiers: Modifiers::empty(),
                 },
                 Binding::Command(FrontendCommand::PlayPause),
             ),
@@ -196,11 +223,11 @@ mod tests {
         let mut bindings = bindings();
 
         assert_eq!(
-            bindings.handle(InputEvent::KeyDown(VirtualKeyCode::L)),
+            bindings.handle(InputEvent::KeyDown(Key::L)),
             button_press(ConsoleButton::A)
         );
         assert_eq!(
-            bindings.handle(InputEvent::KeyUp(VirtualKeyCode::L)),
+            bindings.handle(InputEvent::KeyUp(Key::L)),
             Some(BindingOutcome::Console(InputChange::Button(
                 HoldChange::Release(ConsoleButton::A)
             )))
@@ -211,8 +238,8 @@ mod tests {
     fn an_unbound_key_means_nothing() {
         let mut bindings = bindings();
 
-        assert_eq!(bindings.handle(InputEvent::KeyDown(VirtualKeyCode::Z)), None);
-        assert_eq!(bindings.handle(InputEvent::KeyUp(VirtualKeyCode::Z)), None);
+        assert_eq!(bindings.handle(InputEvent::KeyDown(Key::Z)), None);
+        assert_eq!(bindings.handle(InputEvent::KeyUp(Key::Z)), None);
     }
 
     #[test]
@@ -221,17 +248,17 @@ mod tests {
         let play_pause = Some(BindingOutcome::Command(FrontendCommand::PlayPause));
 
         assert_eq!(
-            bindings.handle(InputEvent::KeyDown(VirtualKeyCode::Comma)),
+            bindings.handle(InputEvent::KeyDown(Key::Comma)),
             play_pause
         );
         assert_eq!(
-            bindings.handle(InputEvent::KeyDown(VirtualKeyCode::Comma)),
+            bindings.handle(InputEvent::KeyDown(Key::Comma)),
             None
         );
 
-        bindings.handle(InputEvent::KeyUp(VirtualKeyCode::Comma));
+        bindings.handle(InputEvent::KeyUp(Key::Comma));
         assert_eq!(
-            bindings.handle(InputEvent::KeyDown(VirtualKeyCode::Comma)),
+            bindings.handle(InputEvent::KeyDown(Key::Comma)),
             play_pause
         );
     }
@@ -239,11 +266,11 @@ mod tests {
     #[test]
     fn a_key_released_under_different_modifiers_still_releases() {
         let mut bindings = bindings();
-        bindings.handle(InputEvent::KeyDown(VirtualKeyCode::L));
-        bindings.handle(InputEvent::KeyModifierChange(ModifiersState::CTRL));
+        bindings.handle(InputEvent::KeyDown(Key::L));
+        bindings.handle(InputEvent::KeyModifierChange(Modifiers::CTRL));
 
         assert_eq!(
-            bindings.handle(InputEvent::KeyUp(VirtualKeyCode::L)),
+            bindings.handle(InputEvent::KeyUp(Key::L)),
             Some(BindingOutcome::Console(InputChange::Button(
                 HoldChange::Release(ConsoleButton::A)
             )))
