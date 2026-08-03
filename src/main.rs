@@ -71,11 +71,10 @@ impl Emulator {
 
             loop {
                 tokio::select! {
-                    biased;
-
                     _ = self.input_wake.changed() => {
                         let _ = self.input_wake.borrow_and_update();
                         self.drain_input();
+                        self.apply_state_change();
                     }
 
                     _ = timer.tick() => {
@@ -90,9 +89,13 @@ impl Emulator {
                                 self.tick();
                                 self.state = EmuState::Paused;
                             }
-                            EmuState::Stopped => break,
+                            EmuState::Stopped => {}
                         }
                     }
+                }
+
+                if self.state == EmuState::Stopped {
+                    break;
                 }
             }
         });
