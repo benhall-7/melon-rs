@@ -4,10 +4,10 @@ use egui::{
     Color32, ColorImage, Context, Pos2, Rect, TextureHandle, TextureOptions, Ui, Vec2,
     ViewportBuilder,
 };
-use tokio::sync::{mpsc, watch};
+use tokio::sync::watch;
 
 use crate::frontend::Frames;
-use crate::input::{InputEvent, Modifiers, TouchPoint};
+use crate::input::{InputBridge, InputEvent, Modifiers, TouchPoint};
 use crate::EmuStateChange;
 
 pub const SCREEN_WIDTH: usize = 256;
@@ -38,7 +38,7 @@ pub fn native_options() -> eframe::NativeOptions {
 /// repaints when the window is unfocused or occluded.
 pub struct App {
     frames: watch::Receiver<Arc<Frames>>,
-    input_tx: mpsc::Sender<InputEvent>,
+    bridge: InputBridge,
     state_tx: watch::Sender<Option<EmuStateChange>>,
     top: TextureHandle,
     bottom: TextureHandle,
@@ -48,7 +48,7 @@ impl App {
     pub fn new(
         cc: &eframe::CreationContext<'_>,
         frames: watch::Receiver<Arc<Frames>>,
-        input_tx: mpsc::Sender<InputEvent>,
+        bridge: InputBridge,
         state_tx: watch::Sender<Option<EmuStateChange>>,
         repaint: &RepaintHandle,
     ) -> Self {
@@ -61,7 +61,7 @@ impl App {
 
         App {
             frames,
-            input_tx,
+            bridge,
             state_tx,
             top: cc
                 .egui_ctx
@@ -104,33 +104,45 @@ impl App {
         .inner
     }
 
-    fn forward_input(&self, ctx: &Context, screen: Rect) {
+    fn touch_screen(&self, raw: &egui::RawInput) -> Rect {
+        raw.screen_rect
+            .map(bottom_screen_rect)
+            .or_else(|| *self.bridge.bottom_screen.lock().unwrap())
+            .unwrap_or_else(|| {
+                bottom_screen_rect(Rect::from_min_size(
+                    Pos2::ZERO,
+                    Vec2::new(SCREEN_WIDTH as f32, 2.0 * SCREEN_HEIGHT as f32),
+                ))
+            })
+    }
+
+    fn forward_input(&self, ctx: &Context, screen: Rect, raw_events: &[egui::Event]) {
         // While egui owns the keyboard, keystrokes belong to whatever is focused
         // rather than to the console.
         let typing = ctx.egui_wants_keyboard_input();
-        let raw = ctx.input(|input| input.raw.events.clone());
 
         let mut events = Vec::new();
-        for event in &raw {
+        for event in raw_events {
             if typing && matches!(event, egui::Event::Key { .. }) {
                 continue;
             }
             host_events(event, screen, &mut events);
         }
 
-        for event in events {
-            if let Err(err) = self.input_tx.try_send(event) {
-                println!("WARNING: a host input event was dropped: {err}");
-            }
-        }
+        self.bridge.forward(events);
     }
 }
 
 impl eframe::App for App {
+    fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
+        let screen = self.touch_screen(raw);
+        self.forward_input(ctx, screen, &raw.events);
+    }
+
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
         self.upload_frames();
         let screen = self.draw_screens(ui);
-        self.forward_input(ui.ctx(), screen);
+        *self.bridge.bottom_screen.lock().unwrap() = Some(screen);
     }
 
     /// Letterboxing around the screens, rather than egui's window colour.
@@ -165,6 +177,21 @@ fn screen_size(available: Vec2) -> Vec2 {
         .max(0.0);
 
     Vec2::new(SCREEN_WIDTH as f32 * scale, SCREEN_HEIGHT as f32 * scale)
+}
+
+/// Where the bottom screen lands inside `content`, matching [`App::draw_screens`].
+fn bottom_screen_rect(content: Rect) -> Rect {
+    let available = content.size();
+    let size = screen_size(available);
+    let origin = content.min;
+
+    Rect::from_min_size(
+        Pos2::new(
+            origin.x + (available.x - size.x).max(0.0) / 2.0,
+            origin.y + (available.y - 2.0 * size.y).max(0.0) / 2.0 + size.y,
+        ),
+        size,
+    )
 }
 
 /// Maps a pointer position onto the console's touch grid.

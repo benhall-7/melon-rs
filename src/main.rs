@@ -8,7 +8,7 @@ use crate::app::{App, RepaintHandle};
 use crate::audio::Playback;
 use crate::config::{Config, ConfigFile, StartParams};
 use crate::frontend::{Frames, Frontend, Request, Save};
-use crate::input::InputEvent;
+use crate::input::{InputBridge, InputEvent};
 
 pub mod app;
 pub mod args;
@@ -46,6 +46,7 @@ struct Emulator {
     request_tx: mpsc::Sender<Request>,
     request_rx: mpsc::Receiver<Request>,
     input_rx: mpsc::Receiver<InputEvent>,
+    input_wake: watch::Receiver<u64>,
     saves: mpsc::Sender<Save>,
     repaint: RepaintHandle,
 }
@@ -69,20 +70,29 @@ impl Emulator {
             let mut timer = tokio::time::interval(Self::FRAME);
 
             loop {
-                timer.tick().await;
+                tokio::select! {
+                    biased;
 
-                self.apply_state_change();
-                self.serve_requests();
-                self.drain_input();
-
-                match self.state {
-                    EmuState::Running => self.tick(),
-                    EmuState::Paused => {}
-                    EmuState::Stepping => {
-                        self.tick();
-                        self.state = EmuState::Paused;
+                    _ = self.input_wake.changed() => {
+                        let _ = self.input_wake.borrow_and_update();
+                        self.drain_input();
                     }
-                    EmuState::Stopped => break,
+
+                    _ = timer.tick() => {
+                        self.apply_state_change();
+                        self.serve_requests();
+                        self.drain_input();
+
+                        match self.state {
+                            EmuState::Running => self.tick(),
+                            EmuState::Paused => {}
+                            EmuState::Stepping => {
+                                self.tick();
+                                self.state = EmuState::Paused;
+                            }
+                            EmuState::Stopped => break,
+                        }
+                    }
                 }
             }
         });
@@ -205,6 +215,7 @@ async fn main() {
     let (_playback, audio) = Playback::start();
 
     let (input_tx, input_rx) = mpsc::channel::<InputEvent>(128);
+    let (input_bridge, input_wake_rx) = InputBridge::new(input_tx);
     let (request_tx, request_rx) = mpsc::channel::<Request>(16);
     let (state_tx, state_rx) = watch::channel(None);
     let (save_tx, save_rx) = mpsc::channel::<Save>(8);
@@ -230,6 +241,7 @@ async fn main() {
         request_tx,
         request_rx,
         input_rx,
+        input_wake: input_wake_rx,
         saves: save_tx,
         repaint: repaint.clone(),
     };
@@ -248,7 +260,7 @@ async fn main() {
             Ok(Box::new(App::new(
                 cc,
                 frames_rx,
-                input_tx,
+                input_bridge,
                 window_state_tx,
                 &repaint,
             )))
