@@ -3,231 +3,184 @@ default_save_path: save.bin
 timestamp: null
 key_map:
   # shoulder buttons
-  - input:
+  - key:
       key_code: P
       modifiers: null
-    action: !NdsAction R
-  - input:
+    binding: !Button R
+  - key:
       key_code: Q
       modifiers: null
-    action: !NdsAction L
+    binding: !Button L
 
   # WASD directional pad
-  - input:
+  - key:
       key_code: W
       modifiers: null
-    action: !NdsAction Up
-  - input:
+    binding: !Button Up
+  - key:
       key_code: A
       modifiers: null
-    action: !NdsAction Left
-  - input:
+    binding: !Button Left
+  - key:
       key_code: S
       modifiers: null
-    action: !NdsAction Down
-  - input:
+    binding: !Button Down
+  - key:
       key_code: D
       modifiers: null
-    action: !NdsAction Right
+    binding: !Button Right
 
   # IJKL buttons
-  - input:
+  - key:
       key_code: I
       modifiers: null
-    action: !NdsAction X
-  - input:
+    binding: !Button X
+  - key:
       key_code: J
       modifiers: null
-    action: !NdsAction Y
-  - input:
+    binding: !Button Y
+  - key:
       key_code: K
       modifiers: null
-    action: !NdsAction B
-  - input:
+    binding: !Button B
+  - key:
       key_code: L
       modifiers: null
-    action: !NdsAction A
+    binding: !Button A
 
-  - input:
+  - key:
       key_code: Space
       modifiers: null
-    action: !NdsAction Start
-  - input:
+    binding: !Button Start
+  - key:
       key_code: X
       modifiers: null
-    action: !NdsAction Select
+    binding: !Button Select
 
-  - input:
+  # the lid is absolute state, so it gets a key each way rather than a toggle
+  - key:
       key_code: Slash
       modifiers: null
-    action: !NdsAction OpenCloseLid
+    binding: CloseLid
+  - key:
+      key_code: Semicolon
+      modifiers: null
+    binding: OpenLid
 
   # emulator pausing/frame-by-frame
-  - input:
+  - key:
       key_code: Period
       modifiers: null
-    action: Step
-  - input:
+    binding: Step
+  - key:
       key_code: Comma
       modifiers: null
-    action: PlayPlause
+    binding: PlayPause
 
   # write savedata to disk
-  - input:
+  - key:
       key_code: S
-      modifiers:
-        shift: false
-        ctrl: true
-        alt: false
-        logo: false
-    action: !Save save.bin
+      modifiers: CTRL
+    binding: !WriteSavedata save.bin
 
   # reading savestates
-  - input:
-      key_code: Key1
+  - key:
+      key_code: Num1
       modifiers: null
-    action: !ReadSavestate Savestate1.bin
-  - input:
-      key_code: Key2
+    binding: !ReadSavestate Savestate1.bin
+  - key:
+      key_code: Num2
       modifiers: null
-    action: !ReadSavestate Savestate2.bin
-  - input:
-      key_code: Key3
+    binding: !ReadSavestate Savestate2.bin
+  - key:
+      key_code: Num3
       modifiers: null
-    action: !ReadSavestate Savestate3.bin
-  - input:
-      key_code: Key4
+    binding: !ReadSavestate Savestate3.bin
+  - key:
+      key_code: Num4
       modifiers: null
-    action: !ReadSavestate Savestate4.bin
-  - input:
-      key_code: Key5
+    binding: !ReadSavestate Savestate4.bin
+  - key:
+      key_code: Num5
       modifiers: null
-    action: !ReadSavestate Savestate5.bin
-  - input:
-      key_code: Key6
+    binding: !ReadSavestate Savestate5.bin
+  - key:
+      key_code: Num6
       modifiers: null
-    action: !ReadSavestate Savestate6.bin
-  - input:
-      key_code: Key7
+    binding: !ReadSavestate Savestate6.bin
+  - key:
+      key_code: Num7
       modifiers: null
-    action: !ReadSavestate Savestate7.bin
-  - input:
-      key_code: Key8
+    binding: !ReadSavestate Savestate7.bin
+  - key:
+      key_code: Num8
       modifiers: null
-    action: !ReadSavestate Savestate8.bin
-  - input:
-      key_code: Key9
+    binding: !ReadSavestate Savestate8.bin
+  - key:
+      key_code: Num9
       modifiers: null
-    action: !ReadSavestate Savestate9.bin
-  - input:
-      key_code: Key0
+    binding: !ReadSavestate Savestate9.bin
+  - key:
+      key_code: Num0
       modifiers: null
-    action: !ReadSavestate Savestate10.bin
+    binding: !ReadSavestate Savestate10.bin
 
   # writing savestates
-  - input:
-      key_code: Key1
-      modifiers:
-        shift: false
-        ctrl: true
-        alt: false
-        logo: false
-    action: !WriteSavestate Savestate1.bin
-  - input:
-      key_code: Key2
-      modifiers:
-        shift: false
-        ctrl: true
-        alt: false
-        logo: false
-    action: !WriteSavestate Savestate2.bin
-  - input:
-      key_code: Key3
-      modifiers:
-        shift: false
-        ctrl: true
-        alt: false
-        logo: false
-    action: !WriteSavestate Savestate3.bin
-  - input:
-      key_code: Key4
-      modifiers:
-        shift: false
-        ctrl: true
-        alt: false
-        logo: false
-    action: !WriteSavestate Savestate4.bin
-  - input:
-      key_code: Key5
-      modifiers:
-        shift: false
-        ctrl: true
-        alt: false
-        logo: false
-    action: !WriteSavestate Savestate5.bin
-  - input:
-      key_code: Key6
-      modifiers:
-        shift: false
-        ctrl: true
-        alt: false
-        logo: false
-    action: !WriteSavestate Savestate6.bin
-  - input:
-      key_code: Key7
-      modifiers:
-        shift: false
-        ctrl: true
-        alt: false
-        logo: false
-    action: !WriteSavestate Savestate7.bin
-  - input:
-      key_code: Key8
-      modifiers:
-        shift: false
-        ctrl: true
-        alt: false
-        logo: false
-    action: !WriteSavestate Savestate8.bin
-  - input:
-      key_code: Key9
-      modifiers:
-        shift: false
-        ctrl: true
-        alt: false
-        logo: false
-    action: !WriteSavestate Savestate9.bin
-  - input:
-      key_code: Key0
-      modifiers:
-        shift: false
-        ctrl: true
-        alt: false
-        logo: false
-    action: !WriteSavestate Savestate10.bin
+  - key:
+      key_code: Num1
+      modifiers: CTRL
+    binding: !WriteSavestate Savestate1.bin
+  - key:
+      key_code: Num2
+      modifiers: CTRL
+    binding: !WriteSavestate Savestate2.bin
+  - key:
+      key_code: Num3
+      modifiers: CTRL
+    binding: !WriteSavestate Savestate3.bin
+  - key:
+      key_code: Num4
+      modifiers: CTRL
+    binding: !WriteSavestate Savestate4.bin
+  - key:
+      key_code: Num5
+      modifiers: CTRL
+    binding: !WriteSavestate Savestate5.bin
+  - key:
+      key_code: Num6
+      modifiers: CTRL
+    binding: !WriteSavestate Savestate6.bin
+  - key:
+      key_code: Num7
+      modifiers: CTRL
+    binding: !WriteSavestate Savestate7.bin
+  - key:
+      key_code: Num8
+      modifiers: CTRL
+    binding: !WriteSavestate Savestate8.bin
+  - key:
+      key_code: Num9
+      modifiers: CTRL
+    binding: !WriteSavestate Savestate9.bin
+  - key:
+      key_code: Num0
+      modifiers: CTRL
+    binding: !WriteSavestate Savestate10.bin
 
   # replay read/write mode
-  - input:
+  - key:
       key_code: Tab
       modifiers: null
-    action: ToggleReplayMode
+    binding: ToggleReplayMode
 
   # replay save
-  - input:
+  - key:
       key_code: R
-      modifiers:
-        shift: false
-        ctrl: true
-        alt: false
-        logo: false
-    action: SaveReplay
+      modifiers: CTRL
+    binding: SaveReplay
 
   # write main RAM to disk (for analysis)
-  - input:
+  - key:
       key_code: D
-      modifiers:
-        shift: false
-        ctrl: true
-        alt: false
-        logo: false
-    action: !WriteMainRAM ram.bin
+      modifiers: CTRL
+    binding: !WriteMainRam ram.bin

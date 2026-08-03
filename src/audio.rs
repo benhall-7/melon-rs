@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use rodio::{OutputStream, Sink, Source};
@@ -42,23 +44,31 @@ impl Audio {
     /// Builds the ring, returning its two ends.
     fn new() -> (Self, Stream) {
         let (pairs, consumer) = RingBuffer::new(Self::CAPACITY);
+        let dry = Arc::new(AtomicUsize::new(0));
 
         let audio = Audio {
             pairs,
             pace: Pace::new(),
         };
-        let stream = Stream::new(consumer);
+        let stream = Stream::new(consumer, dry);
 
         (audio, stream)
     }
 
     /// Queues one emulated frame of audio, reporting the skew to resample with
     pub fn submit(&mut self, frame: &[[i16; 2]]) -> f64 {
+        let _reserve = Self::CAPACITY - self.pairs.slots();
+
         // Whatever will not fit is dropped, which is what bounds latency at the
         // ring's capacity.
-        let _ = self.pairs.push_partial_slice(frame);
+        let (_queued, _spilled) = self.pairs.push_partial_slice(frame);
 
-        self.pace.adjust(Self::CAPACITY - self.pairs.slots())
+        let depth = Self::CAPACITY - self.pairs.slots();
+        let skew = self.pace.adjust(depth);
+
+        // self.log.record(queued, spilled, reserve, depth, skew);
+
+        skew
     }
 }
 
@@ -67,14 +77,16 @@ struct Stream {
     pairs: Consumer<[i16; 2]>,
     pair: [i16; 2],
     channel: usize,
+    dry: Arc<AtomicUsize>,
 }
 
 impl Stream {
-    fn new(pairs: Consumer<[i16; 2]>) -> Self {
+    fn new(pairs: Consumer<[i16; 2]>, dry: Arc<AtomicUsize>) -> Self {
         Stream {
             pairs,
             pair: [0, 0],
             channel: 0,
+            dry,
         }
     }
 }
@@ -86,8 +98,11 @@ impl Iterator for Stream {
         if self.channel == 0 {
             // A dry ring keeps the last pair, as melonDS does. Nothing is
             // committed, so real audio resumes the moment it arrives.
-            if let Ok(pair) = self.pairs.pop() {
-                self.pair = pair;
+            match self.pairs.pop() {
+                Ok(pair) => self.pair = pair,
+                Err(_) => {
+                    self.dry.fetch_add(1, Ordering::Relaxed);
+                }
             }
         }
 
@@ -127,8 +142,8 @@ struct Pace {
 }
 
 impl Pace {
-    /// Backlog to hold: one emulated frame of audio, about 17ms.
-    const TARGET: usize = Nds::AUDIO_SAMPLE_RATE as usize / 60;
+    /// Backlog to hold: two emulated frames of audio, about 33ms.
+    const TARGET: usize = 2 * (Nds::AUDIO_SAMPLE_RATE as usize / 60);
 
     /// How far the backlog may stray before correcting. Whatever is left over
     /// after this is the margin that absorbs a late frame.
@@ -168,17 +183,18 @@ impl Pace {
 mod tests {
     use super::*;
 
-    /// Both ends of a ring, skipping the startup fill so the backlog is known.
+    /// Both ends of a ring holding `pairs`, with no device behind it.
     fn ring(pairs: &[[i16; 2]]) -> (Audio, Stream) {
         let (mut producer, consumer) = RingBuffer::new(Audio::CAPACITY);
         let _ = producer.push_partial_slice(pairs);
 
+        let dry = Arc::new(AtomicUsize::new(0));
         let audio = Audio {
             pairs: producer,
             pace: Pace::new(),
         };
 
-        (audio, Stream::new(consumer))
+        (audio, Stream::new(consumer, dry))
     }
 
     fn play(stream: &mut Stream, samples: usize) -> Vec<i16> {

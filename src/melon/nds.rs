@@ -1,5 +1,3 @@
-use std::io::Write;
-
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use cxx::UniquePtr;
 
@@ -141,19 +139,12 @@ impl Nds {
         }
     }
 
-    pub fn write_savestate(&mut self, file: String) -> bool {
-        let mut handle = std::fs::File::create(file).expect("Couldn't create/open savestate file");
-        unsafe {
-            let result = sys::WriteSavestate(self.0.pin_mut());
-            if result.len() > 0 {
-                handle
-                    .write_all(result.as_slice())
-                    .expect("Couldn't write contents of savestate");
-                true
-            } else {
-                false
-            }
-        }
+    /// The console's state, for the caller to store however it likes.
+    pub fn savestate(&mut self) -> Vec<u8> {
+        let state = unsafe { sys::WriteSavestate(self.0.pin_mut()) };
+        assert!(!state.is_empty(), "melonDS produced an empty savestate");
+
+        state.as_slice().to_vec()
     }
 
     pub fn current_frame(&self) -> u32 {

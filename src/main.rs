@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use clap::Parser;
@@ -7,7 +7,7 @@ use tokio::sync::{mpsc, watch};
 use crate::app::{App, RepaintHandle};
 use crate::audio::Playback;
 use crate::config::{Config, ConfigFile, StartParams};
-use crate::frontend::{Frontend, Request};
+use crate::frontend::{Frames, Frontend, Request, Save};
 use crate::input::InputEvent;
 
 pub mod app;
@@ -36,13 +36,137 @@ pub enum EmuStateChange {
     Stop,
 }
 
-#[derive(Clone)]
-pub struct EmulatorHandle {
-    pub core: Arc<Mutex<Frontend>>,
-    pub state: EmuState,
-    pub input_tx: mpsc::Sender<InputEvent>,
-    pub request_tx: mpsc::Sender<Request>,
-    pub state_tx: watch::Sender<Option<EmuStateChange>>,
+/// The emulator and everything it talks to.
+struct Emulator {
+    frontend: Frontend,
+    state: EmuState,
+    /// Bindings raise state changes and requests, which arrive back here on a later tick.
+    state_tx: watch::Sender<Option<EmuStateChange>>,
+    state_rx: watch::Receiver<Option<EmuStateChange>>,
+    request_tx: mpsc::Sender<Request>,
+    request_rx: mpsc::Receiver<Request>,
+    input_rx: mpsc::Receiver<InputEvent>,
+    saves: mpsc::Sender<Save>,
+    repaint: RepaintHandle,
+}
+
+impl Emulator {
+    const FRAME: Duration = Duration::from_nanos(16_666_667);
+
+    /// Runs frames on their own clock until told to stop.
+    ///
+    /// This is a blocking, fixed-cadence job, so it gets a thread and a runtime
+    /// to itself: nothing else competes for the wake, and `interval` schedules
+    /// against a fixed origin, which sleeping one period per iteration cannot do
+    /// without accumulating every overshoot.
+    fn run(mut self) {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .expect("failed to build the emulator runtime");
+
+        runtime.block_on(async move {
+            let mut timer = tokio::time::interval(Self::FRAME);
+
+            loop {
+                timer.tick().await;
+
+                self.apply_state_change();
+                self.serve_requests();
+                self.drain_input();
+
+                match self.state {
+                    EmuState::Running => self.tick(),
+                    EmuState::Paused => {}
+                    EmuState::Stepping => {
+                        self.tick();
+                        self.state = EmuState::Paused;
+                    }
+                    EmuState::Stopped => break,
+                }
+            }
+        });
+    }
+
+    fn apply_state_change(&mut self) {
+        if !self.state_rx.has_changed().unwrap_or(false) {
+            return;
+        }
+
+        let change = *self.state_rx.borrow_and_update();
+
+        self.state = match (change, self.state) {
+            (Some(EmuStateChange::Stop), _) => EmuState::Stopped,
+            (Some(EmuStateChange::PlayPause), EmuState::Running) => EmuState::Paused,
+            (Some(EmuStateChange::PlayPause), EmuState::Paused | EmuState::Stepping) => {
+                EmuState::Running
+            }
+            (Some(EmuStateChange::Step), EmuState::Running | EmuState::Paused) => {
+                EmuState::Stepping
+            }
+            (_, state) => state,
+        };
+    }
+
+    fn drain_input(&mut self) {
+        while let Ok(event) = self.input_rx.try_recv() {
+            self.frontend
+                .handle_input_event(event, &self.state_tx, &self.request_tx);
+        }
+    }
+
+    /// Turns requests into bytes and hands the writing to someone else.
+    fn serve_requests(&mut self) {
+        while let Ok(request) = self.request_rx.try_recv() {
+            let saves = match request {
+                Request::WriteRam(path) => vec![Save {
+                    path,
+                    contents: self.frontend.nds.main_ram().to_vec(),
+                }],
+                Request::WriteSavedata(path) => vec![Save {
+                    path,
+                    contents: self.frontend.nds.save_data().to_vec(),
+                }],
+                Request::WriteSavestate(path) => {
+                    self.frontend.savestate(path.to_string_lossy().into_owned())
+                }
+                Request::WriteReplay => self.frontend.replay_save().into_iter().collect(),
+                // Loading mutates the console, so it cannot leave this thread.
+                Request::ReadSavestate(path) => {
+                    self.frontend
+                        .read_savestate(path.to_string_lossy().into_owned());
+                    continue;
+                }
+            };
+
+            for save in saves {
+                if let Err(err) = self.saves.try_send(save) {
+                    println!("WARNING: a file was not written: {err}");
+                }
+            }
+        }
+    }
+
+    fn tick(&mut self) {
+        self.frontend.run_frame();
+
+        // The UI only draws on demand, so a finished frame has to ask for it.
+        // Doing it here rather than on a timer keeps repaint throttling from
+        // ever affecting emulation.
+        if let Some(ctx) = self.repaint.get() {
+            ctx.request_repaint();
+        }
+    }
+}
+
+/// Writes what the emulator hands over, so that it never waits on a disk.
+async fn write_saves(mut saves: mpsc::Receiver<Save>) {
+    while let Some(save) = saves.recv().await {
+        match tokio::fs::write(&save.path, &save.contents).await {
+            Ok(()) => println!("wrote {}", save.path.display()),
+            Err(err) => println!("WARNING: couldn't write {}: {err}", save.path.display()),
+        }
+    }
 }
 
 #[tokio::main]
@@ -80,106 +204,42 @@ async fn main() {
     // Playback stops the moment this is dropped, so it lives as long as main.
     let (_playback, audio) = Playback::start();
 
-    let core = Arc::new(Mutex::new(Frontend::new(
-        cart,
-        save,
-        start_time,
-        audio,
-        config.key_map,
-        replay,
-    )));
+    let (input_tx, input_rx) = mpsc::channel::<InputEvent>(128);
+    let (request_tx, request_rx) = mpsc::channel::<Request>(16);
+    let (state_tx, state_rx) = watch::channel(None);
+    let (save_tx, save_rx) = mpsc::channel::<Save>(8);
+    let (frames_tx, frames_rx) = watch::channel(Arc::new(Frames::blank()));
 
-    // TODO: figure out the ownership model for all the receivers, senders, and emulator handle
-    let (input_tx, mut input_rx) = mpsc::channel::<InputEvent>(128);
-    let (request_tx, mut request_rx) = mpsc::channel::<Request>(16);
-    let (state_tx, mut state_rx) = watch::channel(None);
-
-    let mut emulator = EmulatorHandle {
-        core: core.clone(),
-        state: EmuState::Paused,
-        input_tx: input_tx.clone(),
-        request_tx: request_tx.clone(),
-        state_tx: state_tx.clone(),
-    };
+    tokio::spawn(write_saves(save_rx));
 
     let repaint: RepaintHandle = Arc::new(OnceLock::new());
-    let emulator_repaint = repaint.clone();
 
-    // Spawn emulator tick loop
-    tokio::spawn(async move {
-        let mut timer = tokio::time::interval(Duration::from_nanos(16_666_667));
-        loop {
-            timer.tick().await;
+    let emulator = Emulator {
+        frontend: Frontend::new(
+            cart,
+            save,
+            start_time,
+            audio,
+            config.key_map,
+            replay,
+            frames_tx,
+        ),
+        state: EmuState::Paused,
+        state_tx: state_tx.clone(),
+        state_rx,
+        request_tx,
+        request_rx,
+        input_rx,
+        saves: save_tx,
+        repaint: repaint.clone(),
+    };
 
-            if state_rx.has_changed().unwrap() {
-                let state_change = *state_rx.borrow_and_update();
-                match state_change {
-                    Some(EmuStateChange::PlayPause) => match emulator.state {
-                        EmuState::Running => emulator.state = EmuState::Paused,
-                        EmuState::Paused => emulator.state = EmuState::Running,
-                        EmuState::Stepping => emulator.state = EmuState::Running,
-                        EmuState::Stopped => {}
-                    },
-                    Some(EmuStateChange::Step) => match emulator.state {
-                        EmuState::Running => emulator.state = EmuState::Stepping,
-                        EmuState::Paused => emulator.state = EmuState::Stepping,
-                        EmuState::Stepping => emulator.state = EmuState::Stepping,
-                        EmuState::Stopped => {}
-                    },
-                    Some(EmuStateChange::Stop) => emulator.state = EmuState::Stopped,
-                    _ => {}
-                }
-            }
+    let thread = std::thread::Builder::new()
+        .name("emulator".to_owned())
+        .spawn(move || emulator.run())
+        .expect("failed to spawn the emulator thread");
 
-            while let Ok(req) = request_rx.try_recv() {
-                let mut guard = core.lock().unwrap();
-                match req {
-                    Request::WriteRam(path_buf) => {
-                        let ram = guard.nds.main_ram();
-                        std::fs::write(&path_buf, ram).unwrap();
-                        println!("main RAM written to {}", path_buf.display());
-                    }
-                    Request::WriteSavedata(path_buf) => {
-                        let savedata = guard.nds.save_data();
-                        std::fs::write(&path_buf, savedata).unwrap();
-                        println!("savedata written to {}", path_buf.display());
-                    }
-                    Request::WriteSavestate(path_buf) => {
-                        guard.write_savestate(path_buf.to_string_lossy().into_owned());
-                        println!("savestate written to {}", path_buf.display());
-                    }
-                    Request::ReadSavestate(path_buf) => {
-                        guard.read_savestate(path_buf.to_string_lossy().into_owned());
-                        println!("savestate read from {}", path_buf.display());
-                    }
-                    Request::WriteReplay => {
-                        if let Some(replay) = &guard.replay {
-                            let file = replay.0.name.clone();
-                            std::fs::write(file, serde_yaml::to_string(&replay.0).unwrap())
-                                .unwrap();
-                            println!("replay written to {}", replay.0.name.to_string_lossy());
-                        }
-                    }
-                }
-            }
-
-            match emulator.state {
-                EmuState::Running => {
-                    update_inputs(&core, &mut input_rx, &state_tx, &request_tx);
-                    tick_emulator(&core, &emulator_repaint);
-                }
-                EmuState::Paused => {
-                    update_inputs(&core, &mut input_rx, &state_tx, &request_tx);
-                }
-                EmuState::Stepping => {
-                    update_inputs(&core, &mut input_rx, &state_tx, &request_tx);
-                    tick_emulator(&core, &emulator_repaint);
-                    emulator.state = EmuState::Paused;
-                }
-                EmuState::Stopped => break,
-            }
-        }
-    });
+    let window_state_tx = state_tx.clone();
 
     eframe::run_native(
         "melon-rs",
@@ -187,38 +247,17 @@ async fn main() {
         Box::new(move |cc| {
             Ok(Box::new(App::new(
                 cc,
-                emulator.core.clone(),
+                frames_rx,
                 input_tx,
-                emulator.state_tx.clone(),
+                window_state_tx,
                 &repaint,
             )))
         }),
     )
     .expect("failed to open the window");
-}
 
-fn update_inputs(
-    core: &Arc<Mutex<Frontend>>,
-    input_rx: &mut mpsc::Receiver<InputEvent>,
-    state_tx: &watch::Sender<Option<EmuStateChange>>,
-    request_tx: &mpsc::Sender<Request>,
-) {
-    while let Ok(event) = input_rx.try_recv() {
-        core.lock()
-            .map(|mut core| core.handle_input_event(event, state_tx, request_tx))
-            .expect("failed to access core lock");
-    }
-}
-
-fn tick_emulator(core: &Arc<Mutex<Frontend>>, repaint: &RepaintHandle) {
-    core.lock()
-        .map(|mut core| core.run_frame())
-        .expect("failed to access core lock");
-
-    // The UI only draws on demand, so a finished frame has to ask for it. Doing
-    // it here rather than on a timer keeps repaint throttling from ever
-    // affecting emulation.
-    if let Some(ctx) = repaint.get() {
-        ctx.request_repaint();
-    }
+    // The window is gone, so let the emulator finish the frame it is on rather
+    // than tearing the console down underneath it.
+    let _ = state_tx.send(Some(EmuStateChange::Stop));
+    let _ = thread.join();
 }

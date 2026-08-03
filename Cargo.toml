@@ -5,8 +5,6 @@ edition = "2021"
 license = "GPL-3.0"
 
 [dependencies]
-glium = "0.32.1"
-winit = { version = "0.27.5", features = ["serde"] }
 cxx = "1.0.198"
 once_cell = "1.16.0"
 bitflags = { version = "2.0.2", features = ["serde"] }
@@ -18,6 +16,14 @@ tokio = { version = "^1", features = ["full"] }
 byteorder = "1.4.3"
 rodio = "0.17.3"
 clap = { version = "4.4.11", features = ["derive"] }
+egui = { version = "0.35", features = ["serde"] }
+eframe = { version = "0.35", default-features = false, features = [
+    "glow",
+    "default_fonts",
+    "x11",
+    "wayland",
+] }
+rtrb = "0.3.4"
 
 [build-dependencies]
 cmake = "0.1"

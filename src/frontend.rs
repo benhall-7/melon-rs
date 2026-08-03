@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::ffi::OsString;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use tokio::sync::{mpsc, watch};
@@ -31,14 +31,42 @@ pub enum Request {
     WriteSavedata(PathBuf),
 }
 
+/// A file the emulator wants written, handed off so a multi-megabyte write never
+/// lands inside a frame.
+#[derive(Debug, PartialEq, Clone)]
+pub struct Save {
+    pub path: PathBuf,
+    pub contents: Vec<u8>,
+}
+
+/// Both screens as the console last drew them, in melonDS's BGRA order.
+#[derive(Debug, PartialEq, Clone)]
+pub struct Frames {
+    pub top: Vec<u8>,
+    pub bottom: Vec<u8>,
+}
+
+impl Frames {
+    /// Bytes in one screen.
+    const SIZE: usize = 256 * 192 * 4;
+
+    pub fn blank() -> Self {
+        Frames {
+            top: vec![0; Self::SIZE],
+            bottom: vec![0; Self::SIZE],
+        }
+    }
+}
+
 pub struct Frontend {
     pub nds: Nds,
-    pub top_frame: [u8; 256 * 192 * 4],
-    pub bottom_frame: [u8; 256 * 192 * 4],
-    pub audio: Audio,
-    pub bindings: Bindings,
-    pub inputs: InputAccumulator,
-    pub replay: Option<(Replay, ReplayState)>,
+    replay: Option<(Replay, ReplayState)>,
+    /// Finished frames, for whoever is drawing. Sent behind an [`Arc`] so that
+    /// publishing one cannot wait on the reader.
+    frames: watch::Sender<Arc<Frames>>,
+    audio: Audio,
+    bindings: Bindings,
+    inputs: InputAccumulator,
 }
 
 impl Frontend {
@@ -49,6 +77,7 @@ impl Frontend {
         audio: Audio,
         key_map: HashMap<KeyCombination, Binding>,
         replay: Option<(Replay, ReplayState)>,
+        frames: watch::Sender<Arc<Frames>>,
     ) -> Self {
         let mut nds = Nds::new();
 
@@ -65,12 +94,11 @@ impl Frontend {
 
         Frontend {
             nds,
-            top_frame: [0; 256 * 192 * 4],
-            bottom_frame: [0; 256 * 192 * 4],
             audio,
             bindings: Bindings::new(key_map),
             inputs: InputAccumulator::new(),
             replay,
+            frames,
         }
     }
 
@@ -148,7 +176,7 @@ impl Frontend {
         self.nds.run_frame();
 
         self.update_audio();
-        self.update_framebuffers();
+        self.publish_frames();
     }
 
     /// Closes the current window and decides what the console will see.
@@ -222,25 +250,28 @@ impl Frontend {
         self.nds.set_audio_output_skew(skew);
     }
 
-    pub fn update_framebuffers(&mut self) {
-        let mut top = self.top_frame;
-        let mut bottom = self.bottom_frame;
-        self.nds.update_framebuffers(&mut top, false);
-        self.nds.update_framebuffers(&mut bottom, true);
-        self.top_frame = top;
-        self.bottom_frame = bottom;
+    /// Hands the finished screens to whoever is drawing.
+    fn publish_frames(&mut self) {
+        let mut frames = Frames::blank();
+
+        self.nds.update_framebuffers(&mut frames.top, false);
+        self.nds.update_framebuffers(&mut frames.bottom, true);
+
+        // A closed window outliving the last frame is not worth reporting.
+        let _ = self.frames.send(Arc::new(frames));
     }
 
     pub fn read_savestate(&mut self, file: String) {
-        let localized = localize_pathbuf(file).to_string_lossy().into_owned();
+        let path = localize_pathbuf(file);
+        let localized = path.to_string_lossy().into_owned();
 
-        let mut raw: OsString = localized.clone().into();
-        raw.push(".context");
-        let context_path = PathBuf::from(raw).to_string_lossy().into_owned();
+        let mut context_path = path.into_os_string();
+        context_path.push(".context");
+        let context_path = PathBuf::from(context_path);
 
         let context_str = std::fs::read_to_string(&context_path).ok();
         if context_str.is_none() {
-            println!("Couldn't read savestate: {}", context_path);
+            println!("Couldn't read savestate: {}", context_path.display());
             return;
         }
         let context_result = serde_yaml::from_str(context_str.as_ref().unwrap());
@@ -267,12 +298,12 @@ impl Frontend {
         }
     }
 
-    pub fn write_savestate(&mut self, file: String) {
-        let localized = localize_pathbuf(file).to_string_lossy().into_owned();
+    /// Snapshots the console and the replay it belongs to, for writing elsewhere.
+    pub fn savestate(&mut self, file: String) -> Vec<Save> {
+        let path = localize_pathbuf(file);
 
-        let mut raw: OsString = localized.clone().into();
-        raw.push(".context");
-        let context_path = PathBuf::from(raw).to_string_lossy().into_owned();
+        let mut context_path = path.clone().into_os_string();
+        context_path.push(".context");
 
         let context = SavestateContext {
             replay: self.replay.as_ref().map(|replay| SavestateContextReplay {
@@ -281,11 +312,26 @@ impl Frontend {
             }),
         };
 
-        let context_str = serde_yaml::to_string(&context).unwrap();
-        std::fs::write(context_path, context_str)
-            .expect("Couldn't write savestate context object to file");
+        vec![
+            Save {
+                path,
+                contents: self.nds.savestate(),
+            },
+            Save {
+                path: context_path.into(),
+                contents: serde_yaml::to_string(&context).unwrap().into_bytes(),
+            },
+        ]
+    }
 
-        assert!(self.nds.write_savestate(localized));
+    /// The replay as it stands, for writing elsewhere.
+    pub fn replay_save(&self) -> Option<Save> {
+        let (replay, _) = self.replay.as_ref()?;
+
+        Some(Save {
+            path: replay.name.clone(),
+            contents: serde_yaml::to_string(replay).unwrap().into_bytes(),
+        })
     }
 }
 

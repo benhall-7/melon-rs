@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, OnceLock};
 
 use egui::{
     Color32, ColorImage, Context, Pos2, Rect, TextureHandle, TextureOptions, Ui, Vec2,
@@ -6,7 +6,7 @@ use egui::{
 };
 use tokio::sync::{mpsc, watch};
 
-use crate::frontend::Frontend;
+use crate::frontend::Frames;
 use crate::input::{InputEvent, Modifiers, TouchPoint};
 use crate::EmuStateChange;
 
@@ -37,7 +37,7 @@ pub fn native_options() -> eframe::NativeOptions {
 /// the emulator task, which owns its own clock, because eframe throttles
 /// repaints when the window is unfocused or occluded.
 pub struct App {
-    core: Arc<Mutex<Frontend>>,
+    frames: watch::Receiver<Arc<Frames>>,
     input_tx: mpsc::Sender<InputEvent>,
     state_tx: watch::Sender<Option<EmuStateChange>>,
     top: TextureHandle,
@@ -47,7 +47,7 @@ pub struct App {
 impl App {
     pub fn new(
         cc: &eframe::CreationContext<'_>,
-        core: Arc<Mutex<Frontend>>,
+        frames: watch::Receiver<Arc<Frames>>,
         input_tx: mpsc::Sender<InputEvent>,
         state_tx: watch::Sender<Option<EmuStateChange>>,
         repaint: &RepaintHandle,
@@ -60,7 +60,7 @@ impl App {
         );
 
         App {
-            core,
+            frames,
             input_tx,
             state_tx,
             top: cc
@@ -72,15 +72,21 @@ impl App {
         }
     }
 
+    /// Uploads the latest pair of screens, if the emulator has drawn any since
+    /// the last repaint. Resizing the window should not cost two conversions.
     fn upload_frames(&mut self) {
-        let (top, bottom) = {
-            let core = self.core.lock().expect("failed to access core lock");
-            (core.top_frame, core.bottom_frame)
-        };
+        if !self.frames.has_changed().unwrap_or(false) {
+            return;
+        }
 
-        self.top.set(screen_image(&top), TextureOptions::NEAREST);
+        // Cloning the handle rather than reading through it keeps the emulator
+        // from waiting on the conversion below.
+        let frames = self.frames.borrow_and_update().clone();
+
+        self.top
+            .set(screen_image(&frames.top), TextureOptions::NEAREST);
         self.bottom
-            .set(screen_image(&bottom), TextureOptions::NEAREST);
+            .set(screen_image(&frames.bottom), TextureOptions::NEAREST);
     }
 
     /// Draws both screens and reports where the bottom one landed.
