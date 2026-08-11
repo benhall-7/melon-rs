@@ -1,40 +1,21 @@
+mod args;
+
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
+use args::{Args, Commands};
+use chrono::{DateTime, Utc};
 use clap::Parser;
+use melon_rs::{
+    app::{App, RepaintHandle},
+    audio::Playback,
+    config::{Config, ConfigFile, StartParams},
+    frontend::{Frames, Frontend, ReplayState, Request, Save},
+    input::{InputBridge, InputEvent},
+    replay::{Replay, ReplaySource},
+    EmuState, EmuStateChange,
+};
 use tokio::sync::{mpsc, watch};
-
-use crate::app::{App, RepaintHandle};
-use crate::audio::Playback;
-use crate::config::{Config, ConfigFile, StartParams};
-use crate::frontend::{Frames, Frontend, Request, Save};
-use crate::input::{InputBridge, InputEvent};
-
-pub mod app;
-pub mod args;
-pub mod audio;
-pub mod config;
-pub mod events;
-pub mod frontend;
-pub mod input;
-pub mod melon;
-pub mod replay;
-pub mod utils;
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum EmuState {
-    Running,
-    Paused,
-    Stepping,
-    Stopped,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum EmuStateChange {
-    PlayPause,
-    Step,
-    Stop,
-}
 
 /// The emulator and everything it talks to.
 struct Emulator {
@@ -172,6 +153,75 @@ impl Emulator {
     }
 }
 
+#[ignore = "irrefutable_let_patterns"]
+fn start_params(config: &Config, args: Args) -> StartParams {
+    let game_name = args
+        .game
+        .as_ref()
+        .or(config.default_game_path.as_ref())
+        .cloned()
+        .expect(
+            "No game was selected in the command arguments, and no default game was included in the config",
+        );
+
+    let mut save_name = None;
+    let mut replay = None;
+    let mut start_time = config.timestamp.unwrap_or_else(Utc::now);
+
+    match &args.command {
+        Commands::Play(play_args) => {
+            if !play_args.no_save {
+                save_name = play_args
+                    .save
+                    .as_ref()
+                    .or(config.default_save_path.as_ref())
+                    .cloned();
+            }
+        }
+        Commands::Replay(replay_args) => {
+            replay = Some((
+                serde_yaml::from_str(&std::fs::read_to_string(&replay_args.name).unwrap()).unwrap(),
+                ReplayState::Playing,
+            ));
+        }
+        Commands::Record(record_args) => {
+            replay = Some((
+                Replay {
+                    name: record_args.name.clone(),
+                    author: record_args.author.clone().unwrap_or_default(),
+                    source: ReplaySource::SaveFile {
+                        path: record_args.save.clone(),
+                        timestamp: record_args
+                            .timestamp
+                            .as_ref()
+                            .map(|datetime| {
+                                DateTime::parse_from_str(datetime, "%Y-%m-%dT%H:%M:%S%.f%z")
+                                    .expect("The datetime could not be parsed")
+                            })
+                            .map(Into::into)
+                            .unwrap_or_else(Utc::now),
+                    },
+                    inputs: vec![],
+                },
+                ReplayState::Recording,
+            ));
+        }
+    }
+
+    if let Some((replay, _)) = &replay {
+        let ReplaySource::SaveFile { path, timestamp } = &replay.source;
+        save_name = path.clone();
+        start_time = *timestamp;
+    }
+
+    StartParams {
+        replay,
+        game_name,
+        save_name,
+        start_time,
+    }
+}
+
 /// Writes what the emulator hands over, so that it never waits on a disk.
 async fn write_saves(mut saves: mpsc::Receiver<Save>) {
     while let Some(save) = saves.recv().await {
@@ -184,7 +234,7 @@ async fn write_saves(mut saves: mpsc::Receiver<Save>) {
 
 #[tokio::main]
 async fn main() {
-    let args = args::Args::parse();
+    let args = Args::parse();
 
     let config: Config = std::fs::read_to_string("config.yml")
         .ok()
@@ -197,7 +247,7 @@ async fn main() {
         game_name,
         save_name,
         start_time,
-    } = config.get_start_params(args);
+    } = start_params(&config, args);
 
     let cart = std::fs::read(&game_name).unwrap_or_else(|_| {
         panic!(
@@ -258,7 +308,7 @@ async fn main() {
 
     eframe::run_native(
         "melon-rs",
-        app::native_options(),
+        melon_rs::app::native_options(),
         Box::new(move |cc| {
             Ok(Box::new(App::new(
                 cc,

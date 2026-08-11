@@ -4,6 +4,19 @@ version = "0.1.0"
 edition = "2021"
 license = "GPL-3.0"
 
+[lib]
+name = "melon_rs"
+path = "src/lib.rs"
+
+[[bin]]
+name = "melon-rs"
+path = "src/main.rs"
+required-features = ["cli"]
+
+[features]
+default = ["cli"]
+cli = ["dep:clap"]
+
 [dependencies]
 cxx = "1.0.198"
 once_cell = "1.16.0"
@@ -15,7 +28,7 @@ chrono = { version = "0.4.30", features = ["serde"] }
 tokio = { version = "^1", features = ["full"] }
 byteorder = "1.4.3"
 rodio = "0.17.3"
-clap = { version = "4.4.11", features = ["derive"] }
+clap = { version = "4.4.11", features = ["derive"], optional = true }
 egui = { version = "0.35", features = ["serde"] }
 eframe = { version = "0.35", default-features = false, features = [
     "glow",
