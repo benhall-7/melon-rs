@@ -185,6 +185,15 @@ impl Emulator {
     }
 
     fn apply_state_change(&mut self) {
+        // Stop is sent from the UI thread on window close; do not rely on
+        // has_changed alone, in case we were busy when it arrived.
+        if *self.state_rx.borrow() == Some(EmuStateChange::Stop) {
+            self.state = EmuState::Stopped;
+            let _ = self.state_rx.borrow_and_update();
+            self.publish_status();
+            return;
+        }
+
         if !self.state_rx.has_changed().unwrap_or(false) {
             return;
         }

@@ -1,7 +1,9 @@
 use egui::{Align2, FontId, Painter, Pos2, Rect, Stroke, Ui, Vec2};
 
 use crate::app::SCREEN_WIDTH;
-use crate::overlay::{Color, DrawCmd, Line, Point, Rect as OverlayRect, Text};
+use crate::overlay::{
+    Color, DrawCmd, Line, Outline, Point, Rect as OverlayRect, Text, TextAlign, TextFont,
+};
 
 /// Draws console-space overlay commands on top of one screen.
 pub fn draw_screen(ui: &Ui, screen: Rect, cmds: &[DrawCmd]) {
@@ -51,13 +53,74 @@ fn draw_line(painter: &Painter, mapper: &ConsoleMapper, line: &Line) {
 }
 
 fn draw_text(painter: &Painter, mapper: &ConsoleMapper, text: &Text) {
+    let pos = mapper.point(text.pos);
+    let font = font_id(text.font, mapper.length(text.size));
+    let align = to_align2(text.align);
+
+    if let Some(outline) = text.outline {
+        draw_text_outline(painter, pos, align, &text.text, &font, outline, mapper);
+    }
+
     painter.text(
-        mapper.point(text.pos),
-        Align2::LEFT_TOP,
+        pos,
+        align,
         &text.text,
-        FontId::proportional(mapper.length(text.size)),
+        font,
         to_color32(text.color),
     );
+}
+
+fn draw_text_outline(
+    painter: &Painter,
+    pos: Pos2,
+    align: Align2,
+    text: &str,
+    font: &FontId,
+    outline: Outline,
+    mapper: &ConsoleMapper,
+) {
+    let step = mapper.length(outline.width);
+    let color = to_color32(outline.color);
+
+    for (dx, dy) in [
+        (-1.0, 0.0),
+        (1.0, 0.0),
+        (0.0, -1.0),
+        (0.0, 1.0),
+        (-1.0, -1.0),
+        (1.0, -1.0),
+        (-1.0, 1.0),
+        (1.0, 1.0),
+    ] {
+        painter.text(
+            pos + Vec2::new(dx * step, dy * step),
+            align,
+            text,
+            font.clone(),
+            color,
+        );
+    }
+}
+
+fn font_id(font: TextFont, size: f32) -> FontId {
+    match font {
+        TextFont::Monospace => FontId::monospace(size),
+        TextFont::Proportional => FontId::proportional(size),
+    }
+}
+
+fn to_align2(align: TextAlign) -> Align2 {
+    match align {
+        TextAlign::LeftTop => Align2::LEFT_TOP,
+        TextAlign::CenterTop => Align2::CENTER_TOP,
+        TextAlign::RightTop => Align2::RIGHT_TOP,
+        TextAlign::LeftCenter => Align2::LEFT_CENTER,
+        TextAlign::Center => Align2::CENTER_CENTER,
+        TextAlign::RightCenter => Align2::RIGHT_CENTER,
+        TextAlign::LeftBottom => Align2::LEFT_BOTTOM,
+        TextAlign::CenterBottom => Align2::CENTER_BOTTOM,
+        TextAlign::RightBottom => Align2::RIGHT_BOTTOM,
+    }
 }
 
 fn to_color32(color: Color) -> egui::Color32 {

@@ -137,6 +137,10 @@ impl App {
         (top_screen, bottom_screen)
     }
 
+    fn request_stop(&self) {
+        let _ = self.state_tx.send(Some(EmuStateChange::Stop));
+    }
+
     fn touch_screen(&self, raw: &egui::RawInput) -> Rect {
         raw.screen_rect
             .map(bottom_screen_rect)
@@ -168,6 +172,14 @@ impl App {
 
 impl eframe::App for App {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
+        if raw
+            .viewports
+            .values()
+            .any(|viewport| viewport.events.contains(&egui::ViewportEvent::Close))
+        {
+            self.request_stop();
+        }
+
         let screen = self.touch_screen(raw);
         self.forward_input(ctx, screen, &raw.events);
     }
@@ -185,7 +197,7 @@ impl eframe::App for App {
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
-        let _ = self.state_tx.send(Some(EmuStateChange::Stop));
+        self.request_stop();
     }
 }
 

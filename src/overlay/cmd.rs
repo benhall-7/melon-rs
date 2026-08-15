@@ -1,4 +1,5 @@
 use super::Color;
+use super::Text;
 
 /// A point in console screen space.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -53,26 +54,6 @@ impl Line {
             to,
             color,
             width: 1.0,
-        }
-    }
-}
-
-/// Text label. `size` is in console pixels.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Text {
-    pub pos: Point,
-    pub text: String,
-    pub color: Color,
-    pub size: f32,
-}
-
-impl Text {
-    pub fn new(pos: Point, text: impl Into<String>, color: Color) -> Self {
-        Self {
-            pos,
-            text: text.into(),
-            color,
-            size: 8.0,
         }
     }
 }
