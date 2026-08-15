@@ -1,9 +1,9 @@
-use egui::{Align2, FontId, Painter, Pos2, Rect, Stroke, Ui, Vec2};
+use egui::{
+    Align2, FontId, Painter, Pos2, Rect, Stroke, Ui, Vec2,
+};
 
 use crate::app::SCREEN_WIDTH;
-use crate::overlay::{
-    Color, DrawCmd, Line, Outline, Point, Rect as OverlayRect, Text, TextAlign, TextFont,
-};
+use crate::overlay::{Color, DrawCmd, EguiText, Line, Point, Rect as OverlayRect, TextAlign};
 
 /// Draws console-space overlay commands on top of one screen.
 pub fn draw_screen(ui: &Ui, screen: Rect, cmds: &[DrawCmd]) {
@@ -23,7 +23,7 @@ fn draw_cmd(painter: &Painter, mapper: &ConsoleMapper, cmd: &DrawCmd) {
     match cmd {
         DrawCmd::Rect(rect) => draw_rect(painter, mapper, rect),
         DrawCmd::Line(line) => draw_line(painter, mapper, line),
-        DrawCmd::Text(text) => draw_text(painter, mapper, text),
+        DrawCmd::EguiText(text) => draw_egui_text(painter, mapper, text),
     }
 }
 
@@ -52,74 +52,48 @@ fn draw_line(painter: &Painter, mapper: &ConsoleMapper, line: &Line) {
     );
 }
 
-fn draw_text(painter: &Painter, mapper: &ConsoleMapper, text: &Text) {
-    let pos = mapper.point(text.pos);
-    let font = font_id(text.font, mapper.length(text.size));
-    let align = to_align2(text.align);
+fn draw_egui_text(painter: &Painter, mapper: &ConsoleMapper, text: &EguiText) {
+    let width = text.width();
+    let origin = aligned_origin(text.pos, text.align, width, text.cell_height);
 
-    if let Some(outline) = text.outline {
-        draw_text_outline(painter, pos, align, &text.text, &font, outline, mapper);
+    if let Some(background) = text.background {
+        painter.rect_filled(
+            mapper.console_rect(origin.x, origin.y, width, text.cell_height),
+            0.0,
+            to_color32(background),
+        );
     }
 
-    painter.text(
-        pos,
-        align,
-        &text.text,
-        font,
-        to_color32(text.color),
-    );
-}
-
-fn draw_text_outline(
-    painter: &Painter,
-    pos: Pos2,
-    align: Align2,
-    text: &str,
-    font: &FontId,
-    outline: Outline,
-    mapper: &ConsoleMapper,
-) {
-    let step = mapper.length(outline.width);
-    let color = to_color32(outline.color);
-
-    for (dx, dy) in [
-        (-1.0, 0.0),
-        (1.0, 0.0),
-        (0.0, -1.0),
-        (0.0, 1.0),
-        (-1.0, -1.0),
-        (1.0, -1.0),
-        (-1.0, 1.0),
-        (1.0, 1.0),
-    ] {
+    let font = FontId::monospace(mapper.length(text.font_size).max(1.0));
+    let color = to_color32(text.color);
+    for (index, ch) in text.text.chars().enumerate() {
+        let cell = mapper.console_rect(
+            origin.x + index as f32 * text.advance,
+            origin.y,
+            text.cell_width,
+            text.cell_height,
+        );
         painter.text(
-            pos + Vec2::new(dx * step, dy * step),
-            align,
-            text,
+            cell.center(),
+            Align2::CENTER_CENTER,
+            ch,
             font.clone(),
             color,
         );
     }
 }
 
-fn font_id(font: TextFont, size: f32) -> FontId {
-    match font {
-        TextFont::Monospace => FontId::monospace(size),
-        TextFont::Proportional => FontId::proportional(size),
-    }
-}
-
-fn to_align2(align: TextAlign) -> Align2 {
+fn aligned_origin(pos: Point, align: TextAlign, width: f32, height: f32) -> Point {
     match align {
-        TextAlign::LeftTop => Align2::LEFT_TOP,
-        TextAlign::CenterTop => Align2::CENTER_TOP,
-        TextAlign::RightTop => Align2::RIGHT_TOP,
-        TextAlign::LeftCenter => Align2::LEFT_CENTER,
-        TextAlign::Center => Align2::CENTER_CENTER,
-        TextAlign::RightCenter => Align2::RIGHT_CENTER,
-        TextAlign::LeftBottom => Align2::LEFT_BOTTOM,
-        TextAlign::CenterBottom => Align2::CENTER_BOTTOM,
-        TextAlign::RightBottom => Align2::RIGHT_BOTTOM,
+        TextAlign::LeftTop => pos,
+        TextAlign::CenterTop => Point::new(pos.x - width * 0.5, pos.y),
+        TextAlign::RightTop => Point::new(pos.x - width, pos.y),
+        TextAlign::LeftCenter => Point::new(pos.x, pos.y - height * 0.5),
+        TextAlign::Center => Point::new(pos.x - width * 0.5, pos.y - height * 0.5),
+        TextAlign::RightCenter => Point::new(pos.x - width, pos.y - height * 0.5),
+        TextAlign::LeftBottom => Point::new(pos.x, pos.y - height),
+        TextAlign::CenterBottom => Point::new(pos.x - width * 0.5, pos.y - height),
+        TextAlign::RightBottom => Point::new(pos.x - width, pos.y - height),
     }
 }
 
@@ -151,6 +125,15 @@ impl ConsoleMapper {
     fn length(&self, console_pixels: f32) -> f32 {
         console_pixels * self.scale
     }
+
+    /// Maps one console-space glyph bitmap without expanding neighboring quads.
+    fn console_rect(&self, x: f32, y: f32, width: f32, height: f32) -> Rect {
+        let left = self.origin.x + x * self.scale;
+        let top = self.origin.y + y * self.scale;
+        let right = left + width * self.scale;
+        let bottom = top + height * self.scale;
+        Rect::from_min_max(Pos2::new(left, top), Pos2::new(right, bottom))
+    }
 }
 
 #[cfg(test)]
@@ -178,14 +161,8 @@ mod tests {
 
     #[test]
     fn lengths_scale_with_the_screen() {
-        let small = ConsoleMapper::new(Rect::from_min_size(
-            Pos2::ZERO,
-            Vec2::new(256.0, 192.0),
-        ));
-        let large = ConsoleMapper::new(Rect::from_min_size(
-            Pos2::ZERO,
-            Vec2::new(512.0, 384.0),
-        ));
+        let small = ConsoleMapper::new(Rect::from_min_size(Pos2::ZERO, Vec2::new(256.0, 192.0)));
+        let large = ConsoleMapper::new(Rect::from_min_size(Pos2::ZERO, Vec2::new(512.0, 384.0)));
 
         assert_eq!(small.length(16.0), 16.0);
         assert_eq!(large.length(16.0), 32.0);

@@ -7,16 +7,20 @@ pub mod input;
 pub mod melon;
 pub mod observe;
 pub mod overlay;
-pub mod replay;
 pub mod render;
+pub mod replay;
 pub mod run;
 pub mod utils;
 
 pub use input::ConsoleInputState;
 pub use observe::{FrameObserver, FrameView};
-pub use overlay::{Color, DrawCmd, Line, Outline, Overlay, Point, Rect, Screen, Text, TextAlign, TextFont};
+pub use overlay::{
+    push_egui_font_probe, Color, DrawCmd, EguiText, Line, Overlay, Point, Rect, Screen, TextAlign,
+    DEFAULT_EGUI_ADVANCE, DEFAULT_EGUI_CELL_HEIGHT, DEFAULT_EGUI_CELL_WIDTH, FONT_PROBE_ROWS,
+    DEFAULT_EGUI_FONT_SIZE,
+};
 pub use render::{RenderContext, RenderHook, RenderStatus, ScreenRect};
-pub use run::{RunParams, run};
+pub use run::{run, RunParams};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum EmuState {

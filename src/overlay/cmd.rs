@@ -1,5 +1,4 @@
-use super::Color;
-use super::Text;
+use super::{Color, EguiText};
 
 /// A point in console screen space.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -63,5 +62,6 @@ impl Line {
 pub enum DrawCmd {
     Rect(Rect),
     Line(Line),
-    Text(Text),
+    /// Fixed-cell text drawn with egui's built-in monospace font.
+    EguiText(EguiText),
 }

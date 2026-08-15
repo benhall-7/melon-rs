@@ -1,13 +1,9 @@
-use super::Color;
-use super::Point;
+use super::{Color, Point};
 
-/// Built-in font selection for overlay text.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum TextFont {
-    #[default]
-    Proportional,
-    Monospace,
-}
+pub const DEFAULT_EGUI_CELL_WIDTH: f32 = 8.0;
+pub const DEFAULT_EGUI_CELL_HEIGHT: f32 = 10.0;
+pub const DEFAULT_EGUI_ADVANCE: f32 = 6.0;
+pub const DEFAULT_EGUI_FONT_SIZE: f32 = 9.0;
 
 /// Anchor point for overlay text relative to `pos`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -24,47 +20,42 @@ pub enum TextAlign {
     RightBottom,
 }
 
-/// Outline drawn behind text for legibility on busy backgrounds.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Outline {
-    pub color: Color,
-    /// Width in console pixels.
-    pub width: f32,
-}
-
-impl Outline {
-    pub fn new(color: Color, width: f32) -> Self {
-        Self { color, width }
-    }
-}
-
-/// Text label. `size` is in console pixels.
+/// Text rendered with egui's built-in monospace font in fixed-size cells.
+///
+/// The cell dimensions provide deterministic layout metrics independently of
+/// egui's glyph bearings. Glyphs are centered in their cells and may overhang.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Text {
+pub struct EguiText {
     pub pos: Point,
     pub text: String,
     pub color: Color,
-    pub size: f32,
-    pub font: TextFont,
+    pub cell_width: f32,
+    pub cell_height: f32,
+    pub advance: f32,
+    pub font_size: f32,
     pub align: TextAlign,
-    pub outline: Option<Outline>,
+    /// Drawn exactly to the fixed-cell bounds, without implicit padding.
+    pub background: Option<Color>,
 }
 
-impl Text {
+impl EguiText {
     pub fn new(pos: Point, text: impl Into<String>, color: Color) -> Self {
         Self {
             pos,
             text: text.into(),
             color,
-            size: 8.0,
-            font: TextFont::default(),
+            cell_width: DEFAULT_EGUI_CELL_WIDTH,
+            cell_height: DEFAULT_EGUI_CELL_HEIGHT,
+            advance: DEFAULT_EGUI_ADVANCE,
+            font_size: DEFAULT_EGUI_FONT_SIZE,
             align: TextAlign::default(),
-            outline: None,
+            background: None,
         }
     }
 
-    pub fn monospace(mut self) -> Self {
-        self.font = TextFont::Monospace;
+    pub fn cell_size(mut self, width: f32, height: f32) -> Self {
+        self.cell_width = width;
+        self.cell_height = height;
         self
     }
 
@@ -73,13 +64,25 @@ impl Text {
         self
     }
 
-    pub fn size(mut self, size: f32) -> Self {
-        self.size = size;
+    pub fn character_advance(mut self, advance: f32) -> Self {
+        self.advance = advance;
         self
     }
 
-    pub fn outline(mut self, outline: Outline) -> Self {
-        self.outline = Some(outline);
+    pub fn font_size(mut self, size: f32) -> Self {
+        self.font_size = size;
         self
+    }
+
+    pub fn background(mut self, color: Color) -> Self {
+        self.background = Some(color);
+        self
+    }
+
+    pub fn width(&self) -> f32 {
+        match self.text.chars().count() {
+            0 => 0.0,
+            count => self.cell_width + (count - 1) as f32 * self.advance,
+        }
     }
 }
