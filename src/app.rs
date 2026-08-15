@@ -8,6 +8,7 @@ use tokio::sync::watch;
 
 use crate::frontend::Frames;
 use crate::input::{InputBridge, InputEvent, Modifiers, TouchPoint};
+use crate::render::{draw_screen, RenderContext, RenderHook, RenderStatus, ScreenRect};
 use crate::EmuStateChange;
 
 pub const SCREEN_WIDTH: usize = 256;
@@ -38,6 +39,8 @@ pub fn native_options() -> eframe::NativeOptions {
 /// repaints when the window is unfocused or occluded.
 pub struct App {
     frames: watch::Receiver<Arc<Frames>>,
+    status: watch::Receiver<RenderStatus>,
+    render_hooks: Vec<Box<dyn RenderHook>>,
     bridge: InputBridge,
     state_tx: watch::Sender<Option<EmuStateChange>>,
     top: TextureHandle,
@@ -48,6 +51,8 @@ impl App {
     pub fn new(
         cc: &eframe::CreationContext<'_>,
         frames: watch::Receiver<Arc<Frames>>,
+        status: watch::Receiver<RenderStatus>,
+        render_hooks: Vec<Box<dyn RenderHook>>,
         bridge: InputBridge,
         state_tx: watch::Sender<Option<EmuStateChange>>,
         repaint: &RepaintHandle,
@@ -61,6 +66,8 @@ impl App {
 
         App {
             frames,
+            status,
+            render_hooks,
             bridge,
             state_tx,
             top: cc
@@ -89,19 +96,45 @@ impl App {
             .set(screen_image(&frames.bottom), TextureOptions::NEAREST);
     }
 
+    fn invoke_render_hooks(&mut self, ui: &Ui, top_screen: Rect, bottom_screen: Rect) {
+        let status = *self.status.borrow();
+        let ctx = RenderContext {
+            frame: status.frame,
+            paused: status.paused,
+            top_screen: screen_rect(top_screen),
+            bottom_screen: screen_rect(bottom_screen),
+        };
+
+        for hook in &mut self.render_hooks {
+            let overlay = hook.on_render(ctx);
+            draw_screen(ui, top_screen, &overlay.top);
+            draw_screen(ui, bottom_screen, &overlay.bottom);
+        }
+    }
+
     /// Draws both screens and reports where the bottom one landed.
-    fn draw_screens(&self, ui: &mut Ui) -> Rect {
+    fn draw_screens(&mut self, ui: &mut Ui) -> (Rect, Rect) {
         ui.spacing_mut().item_spacing = Vec2::ZERO;
 
         let available = ui.available_size();
         let size = screen_size(available);
+        let origin = ui.available_rect_before_wrap().min;
+        let inset = Vec2::new(
+            (available.x - size.x).max(0.0) / 2.0,
+            (available.y - 2.0 * size.y).max(0.0) / 2.0,
+        );
+
+        let top_screen = Rect::from_min_size(origin + inset, size);
+        let bottom_screen =
+            Rect::from_min_size(origin + inset + Vec2::new(0.0, size.y), size);
 
         ui.vertical_centered(|ui| {
-            ui.add_space((available.y - 2.0 * size.y).max(0.0) / 2.0);
+            ui.add_space(inset.y);
             ui.add(screen_widget(&self.top, size));
-            ui.add(screen_widget(&self.bottom, size)).rect
-        })
-        .inner
+            ui.add(screen_widget(&self.bottom, size));
+        });
+
+        (top_screen, bottom_screen)
     }
 
     fn touch_screen(&self, raw: &egui::RawInput) -> Rect {
@@ -141,8 +174,9 @@ impl eframe::App for App {
 
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
         self.upload_frames();
-        let screen = self.draw_screens(ui);
-        *self.bridge.bottom_screen.lock().unwrap() = Some(screen);
+        let (top_screen, bottom_screen) = self.draw_screens(ui);
+        self.invoke_render_hooks(ui, top_screen, bottom_screen);
+        *self.bridge.bottom_screen.lock().unwrap() = Some(bottom_screen);
     }
 
     /// Letterboxing around the screens, rather than egui's window colour.
@@ -152,6 +186,15 @@ impl eframe::App for App {
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         let _ = self.state_tx.send(Some(EmuStateChange::Stop));
+    }
+}
+
+fn screen_rect(rect: Rect) -> ScreenRect {
+    ScreenRect {
+        min_x: rect.min.x,
+        min_y: rect.min.y,
+        width: rect.width(),
+        height: rect.height(),
     }
 }
 

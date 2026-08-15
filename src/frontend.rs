@@ -7,12 +7,13 @@ use tokio::sync::{mpsc, watch};
 
 use crate::audio::Audio;
 use crate::input::{
-    Binding, BindingOutcome, Bindings, BoundaryIndex, BoundaryInput, FrontendCommand,
-    InputAccumulator, InputEvent, KeyCombination, SystemAction,
+    Binding, BindingOutcome, Bindings, BoundaryIndex, BoundaryInput, ConsoleInputState,
+    FrontendCommand, InputAccumulator, InputEvent, KeyCombination, SystemAction,
 };
 use crate::melon::nds::Nds;
 use crate::replay::SavestateContextReplay;
 use crate::replay::{Replay, SavestateContext};
+use crate::observe::{FrameObserver, FrameView};
 use crate::utils::localize_pathbuf;
 use crate::EmuStateChange;
 
@@ -67,6 +68,7 @@ pub struct Frontend {
     audio: Audio,
     bindings: Bindings,
     inputs: InputAccumulator,
+    observers: Vec<Box<dyn FrameObserver>>,
 }
 
 impl Frontend {
@@ -99,7 +101,16 @@ impl Frontend {
             inputs: InputAccumulator::new(),
             replay,
             frames,
+            observers: Vec::new(),
         }
+    }
+
+    pub fn with_observers(
+        mut self,
+        observers: impl IntoIterator<Item = Box<dyn FrameObserver>>,
+    ) -> Self {
+        self.observers = observers.into_iter().collect();
+        self
     }
 
     pub fn handle_input_event(
@@ -175,8 +186,22 @@ impl Frontend {
 
         self.nds.run_frame();
 
+        self.notify_observers(&input.state);
+
         self.update_audio();
         self.publish_frames();
+    }
+
+    fn notify_observers(&mut self, input: &ConsoleInputState) {
+        let view = FrameView {
+            frame: self.nds.current_frame() as u64,
+            main_ram: self.nds.main_ram(),
+            input: *input,
+        };
+
+        for observer in &mut self.observers {
+            observer.on_frame(view);
+        }
     }
 
     /// Closes the current window and decides what the console will see.
