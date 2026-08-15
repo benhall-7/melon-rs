@@ -52,28 +52,6 @@ impl Overlay {
     }
 }
 
-/// Sample strings for visually verifying bitmap font rendering.
-pub const FONT_PROBE_ROWS: &[&str] = &["0123456789", "ABCDEFGHIJ", "abcdefghij", "-_./:[]()#"];
-
-/// Draws [`FONT_PROBE_ROWS`] with egui's monospace font in 8×10 cells.
-pub fn push_egui_font_probe(overlay: &mut Overlay, screen: Screen) {
-    let background = Color::rgba(64, 64, 64, 144);
-
-    for (row, text) in FONT_PROBE_ROWS.iter().enumerate() {
-        overlay.push(
-            screen,
-            DrawCmd::EguiText(
-                EguiText::new(
-                    Point::new(0.0, row as f32 * DEFAULT_EGUI_CELL_HEIGHT),
-                    *text,
-                    Color::rgb(255, 255, 255),
-                )
-                .background(background),
-            ),
-        );
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
