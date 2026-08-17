@@ -68,7 +68,10 @@ pub fn run(
                 paused: true,
             });
 
-        tokio::spawn(write_saves(save_rx));
+        thread::Builder::new()
+            .name("file-saver".to_owned())
+            .spawn(move || write_saves(save_rx))
+            .expect("failed to spawn the save writer thread");
 
         let repaint: RepaintHandle = Arc::new(OnceLock::new());
         let render_hooks: Vec<Box<dyn RenderHook>> = render_hooks.into_iter().collect();
@@ -269,9 +272,16 @@ impl Emulator {
     }
 }
 
-async fn write_saves(mut saves: mpsc::Receiver<Save>) {
-    while let Some(save) = saves.recv().await {
-        match tokio::fs::write(&save.path, &save.contents).await {
+fn write_saves(mut saves: mpsc::Receiver<Save>) {
+    while let Some(save) = saves.blocking_recv() {
+        let result = save
+            .path
+            .parent()
+            .map(std::fs::create_dir_all)
+            .transpose()
+            .and_then(|_| std::fs::write(&save.path, &save.contents));
+
+        match result {
             Ok(()) => println!("wrote {}", save.path.display()),
             Err(err) => println!("WARNING: couldn't write {}: {err}", save.path.display()),
         }

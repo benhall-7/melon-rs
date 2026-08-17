@@ -1,5 +1,6 @@
 /target
 /build
 /.vscode
+/.cursor
 expanded.rs
 implement.txt
