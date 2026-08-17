@@ -3,7 +3,7 @@ use egui::{
 };
 
 use crate::app::SCREEN_WIDTH;
-use crate::overlay::{Color, DrawCmd, EguiText, Line, Point, Rect as OverlayRect, TextAlign};
+use crate::overlay::{Color, DrawCmd, Text, Line, Point, Rect as OverlayRect, TextAlign};
 
 /// Draws console-space overlay commands on top of one screen.
 pub fn draw_screen(ui: &Ui, screen: Rect, cmds: &[DrawCmd]) {
@@ -52,7 +52,7 @@ fn draw_line(painter: &Painter, mapper: &ConsoleMapper, line: &Line) {
     );
 }
 
-fn draw_egui_text(painter: &Painter, mapper: &ConsoleMapper, text: &EguiText) {
+fn draw_egui_text(painter: &Painter, mapper: &ConsoleMapper, text: &Text) {
     let width = text.width();
     let origin = aligned_origin(text.pos, text.align, width, text.cell_height);
 

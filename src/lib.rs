@@ -15,8 +15,8 @@ pub mod utils;
 pub use input::ConsoleInputState;
 pub use observe::{FrameObserver, FrameView};
 pub use overlay::{
-    Color, DrawCmd, EguiText, Line, Overlay, Point, Rect, Screen, TextAlign, DEFAULT_EGUI_ADVANCE,
-    DEFAULT_EGUI_CELL_HEIGHT, DEFAULT_EGUI_CELL_WIDTH, DEFAULT_EGUI_FONT_SIZE,
+    Color, DrawCmd, Text, Line, Overlay, Point, Rect, Screen, TextAlign, DEFAULT_ADVANCE,
+    DEFAULT_CELL_HEIGHT, DEFAULT_CELL_WIDTH, DEFAULT_FONT_SIZE,
 };
 pub use render::{RenderContext, RenderHook, RenderStatus, ScreenRect};
 pub use run::{run, RunParams};

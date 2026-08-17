@@ -1,9 +1,9 @@
 use super::{Color, Point};
 
-pub const DEFAULT_EGUI_CELL_WIDTH: f32 = 8.0;
-pub const DEFAULT_EGUI_CELL_HEIGHT: f32 = 10.0;
-pub const DEFAULT_EGUI_ADVANCE: f32 = 6.0;
-pub const DEFAULT_EGUI_FONT_SIZE: f32 = 9.0;
+pub const DEFAULT_CELL_WIDTH: f32 = 8.0;
+pub const DEFAULT_CELL_HEIGHT: f32 = 10.0;
+pub const DEFAULT_ADVANCE: f32 = 6.0;
+pub const DEFAULT_FONT_SIZE: f32 = 9.0;
 
 /// Anchor point for overlay text relative to `pos`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -25,7 +25,7 @@ pub enum TextAlign {
 /// The cell dimensions provide deterministic layout metrics independently of
 /// egui's glyph bearings. Glyphs are centered in their cells and may overhang.
 #[derive(Debug, Clone, PartialEq)]
-pub struct EguiText {
+pub struct Text {
     pub pos: Point,
     pub text: String,
     pub color: Color,
@@ -38,16 +38,16 @@ pub struct EguiText {
     pub background: Option<Color>,
 }
 
-impl EguiText {
+impl Text {
     pub fn new(pos: Point, text: impl Into<String>, color: Color) -> Self {
         Self {
             pos,
             text: text.into(),
             color,
-            cell_width: DEFAULT_EGUI_CELL_WIDTH,
-            cell_height: DEFAULT_EGUI_CELL_HEIGHT,
-            advance: DEFAULT_EGUI_ADVANCE,
-            font_size: DEFAULT_EGUI_FONT_SIZE,
+            cell_width: DEFAULT_CELL_WIDTH,
+            cell_height: DEFAULT_CELL_HEIGHT,
+            advance: DEFAULT_ADVANCE,
+            font_size: DEFAULT_FONT_SIZE,
             align: TextAlign::default(),
             background: None,
         }

@@ -11,8 +11,8 @@ mod text;
 pub use cmd::{DrawCmd, Line, Point, Rect};
 pub use color::Color;
 pub use text::{
-    EguiText, TextAlign, DEFAULT_EGUI_ADVANCE, DEFAULT_EGUI_CELL_HEIGHT,
-    DEFAULT_EGUI_CELL_WIDTH, DEFAULT_EGUI_FONT_SIZE,
+    Text, TextAlign, DEFAULT_ADVANCE, DEFAULT_CELL_HEIGHT,
+    DEFAULT_CELL_WIDTH, DEFAULT_FONT_SIZE,
 };
 
 /// Which NDS screen an overlay layer targets.
@@ -69,7 +69,7 @@ mod tests {
         );
         overlay.push(
             Screen::Bottom,
-            DrawCmd::EguiText(EguiText::new(
+            DrawCmd::EguiText(Text::new(
                 Point::new(4.0, 8.0),
                 "dmg",
                 Color::rgb(255, 255, 255),
